@@ -12,16 +12,38 @@ GIF_FPS = 10
 GIF_MAX_WIDTH = 800
 
 
-def video(ctrl, anchor=None, **_):
+def video(ctrl, menu=None, **_):
+    """Region video. The video tools are fetched in the panel the first
+    time; then the ring closes and the region is picked."""
     if not common.IS_WINDOWS:
         common.tell(ctrl, "Video recording is Windows-only for now.")
         return
-    image, box = pick_region(ctrl)
-    if image is None:
+
+    def record_now(ffmpeg):
+        image, box = pick_region(ctrl)
+        if image is not None:
+            _start_video(ctrl, ffmpeg, box)
+
+    have = common.ffmpeg_path()
+    if have:
+        if menu is not None:
+            menu.close_then(lambda: record_now(have))
+        else:
+            record_now(have)
         return
-    common.with_tool(ctrl, "ffmpeg", "Getting the video tools (once)",
-                     lambda ffmpeg: _start_video(ctrl, ffmpeg, box),
-                     anchor=anchor)
+    from .card import Card, ensure_tool
+    card = Card(ctrl, "Screen record", None,
+                "The video tools are needed once (about 140 MB).", host=menu)
+
+    def finish(ffmpeg):
+        if menu is not None:
+            menu.close_then(lambda: record_now(ffmpeg))
+        else:
+            ctrl.root.after(50, lambda: record_now(ffmpeg))
+        return None
+
+    card.run(lambda p: ensure_tool(p, "ffmpeg"), finish,
+             "Getting the video tools…")
 
 
 def _start_video(ctrl, ffmpeg, box):

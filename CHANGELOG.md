@@ -20,6 +20,33 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## 1.52.0 — 2026-10-22
+
+### Changed
+
+- **Everything happens inside the ring.** Every tool now uses the same
+  panel beside the ring for its actions, settings, progress and results.
+  No tool opens a window of its own any more while the ring is up.
+- **Send in the ring.** Send, Receive and Phone via QR show in the panel,
+  and the QR code appears in the middle of the ring. Incoming files from
+  another computer are accepted or declined right there.
+- **Calendar on hover.** Point at Calendar and the month appears; it stays
+  while the mouse is on it and goes away when the mouse leaves. Each agenda
+  item can be deleted.
+
+### Added
+
+- **World clock** in the calendar: California, Frankfurt, India and
+  Shanghai to start with. Click a clock to pick another city. Summer and
+  winter time are followed automatically.
+- **Selfie check** under Capture: the laptop camera, live and mirrored, to
+  see how you look before a call. Nothing is recorded unless you press
+  Save photo.
+- **♥ Support Squint** in the middle of the ring opens a PayPal donation
+  page.
+
+---
+
 ## 1.51.0 — 2026-10-22
 
 ### Changed

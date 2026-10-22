@@ -24,24 +24,32 @@ IS_WINDOWS = sys.platform == "win32"
 class Card:
     open_cards = []
 
-    def __init__(self, ctrl, title, anchor=None, subtitle=""):
+    def __init__(self, ctrl, title, anchor=None, subtitle="", host=None):
+        """`host`, when given, is the open radial menu: the card is drawn
+        in its panel instead of a window of its own."""
         self.ctrl = ctrl
         self.title = title
         self.closed = False
+        self.host = host
         self._state = {"fraction": None, "text": ""}
         self._spin = 0
         self._job = None
         root = ctrl.root
-        self.s = s = self._scale(root, anchor)
-        self.w = int(300 * s)
-
-        win = self.win = tk.Toplevel(root)
-        win.overrideredirect(True)
-        win.attributes("-topmost", True)
-        win.configure(bg=common.LINE)
-        self.frame = tk.Frame(win, bg=common.PANEL, padx=int(14 * s),
-                              pady=int(12 * s))
-        self.frame.pack(padx=1, pady=1)
+        if host is not None:
+            self.s = s = host.s
+            self.w = host.panel_width() + int(28 * s)
+            self.win = host.win
+            self.frame = host.attach(self)
+        else:
+            self.s = s = self._scale(root, anchor)
+            self.w = int(300 * s)
+            win = self.win = tk.Toplevel(root)
+            win.overrideredirect(True)
+            win.attributes("-topmost", True)
+            win.configure(bg=common.LINE)
+            self.frame = tk.Frame(win, bg=common.PANEL, padx=int(14 * s),
+                                  pady=int(12 * s))
+            self.frame.pack(padx=1, pady=1)
         # Every card the same width, whatever is in it.
         tk.Frame(self.frame, bg=common.PANEL, width=self.w - int(28 * s),
                  height=1).pack()
@@ -67,7 +75,8 @@ class Card:
         for w in (head,) + tuple(head.winfo_children()[:1]):
             w.bind("<ButtonPress-1>", self._drag_start)
             w.bind("<B1-Motion>", self._drag)
-        win.bind("<Escape>", lambda _e: self.cancel())
+        if host is None:
+            self.win.bind("<Escape>", lambda _e: self.cancel())
         self._anchor = anchor
         Card.open_cards.append(self)
 
@@ -87,6 +96,9 @@ class Card:
                 "bold" if bold else "normal")
 
     def _place(self):
+        if self.host is not None:
+            self.host.relayout()
+            return
         win = self.win
         win.update_idletasks()
         w, h = win.winfo_reqwidth(), win.winfo_reqheight()
@@ -119,10 +131,14 @@ class Card:
             pass
 
     def _drag_start(self, e):
+        if self.host is not None:
+            return
         self._grab = (e.x_root - self.win.winfo_x(),
                       e.y_root - self.win.winfo_y())
 
     def _drag(self, e):
+        if self.host is not None:
+            return
         dx, dy = self._grab
         self.win.geometry("+%d+%d" % (e.x_root - dx, e.y_root - dy))
 
@@ -333,13 +349,13 @@ class Card:
                          name="radial-card").start()
 
         def pump():
-            if self.closed:
+            if self.closed and not getattr(self, "_hidden", False):
                 return
             try:
                 ok, value = box.get_nowait()
             except queue.Empty:
                 self._draw_bar()
-                self._job = self.win.after(100, pump)
+                self._job = self.ctrl.root.after(100, pump)
                 return
             if not ok:
                 self.fail(str(value) or value.__class__.__name__)
@@ -378,6 +394,10 @@ class Card:
     def _hide(self):
         """Keep working out of the way; say so when it is done."""
         self._hidden = True
+        if self.host is not None:
+            # The work carries on; the ring goes back to the tool's list.
+            self.host.release(self)
+            return
         try:
             self.win.withdraw()
         except tk.TclError:
@@ -387,7 +407,8 @@ class Card:
 
     def done(self, message, path=None):
         self._job = None
-        if getattr(self, "_hidden", False):
+        if getattr(self, "_hidden", False) or (
+                self.host is not None and self.host.closed):
             self.close()
             common.tell(self.ctrl, message, path)
             return
@@ -423,12 +444,19 @@ class Card:
                 side="right", padx=(0, int(6 * s)))
             self.win.bind("<Return>", lambda _e: open_it())
         self._place()
-        self.win.after(15000, self.close)
+        if self.host is None:
+            self.win.after(15000, self.close)
 
     def fail(self, message):
         self._job = None
         common.log("card %s failed: %s" % (self.title, message))
-        if getattr(self, "_hidden", False):
+        if getattr(self, "_hidden", False) or (
+                self.host is not None and self.host.closed):
+            self.closed = True
+            common.tell(self.ctrl, "%s did not work.\n%s" % (self.title,
+                                                              message[:200]))
+            return
+        if getattr(self, "_hidden", False) and self.host is None:
             try:
                 self.win.deiconify()
             except tk.TclError:
@@ -463,6 +491,9 @@ class Card:
         self.closed = True
         if self in Card.open_cards:
             Card.open_cards.remove(self)
+        if self.host is not None:
+            self.host.release(self)
+            return
         try:
             self.win.destroy()
         except Exception:

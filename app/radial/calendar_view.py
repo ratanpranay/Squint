@@ -92,190 +92,248 @@ def start_reminders(ctrl):
     ctrl.root.after(5000, tick)
 
 
-class CalendarWindow:
-    _open = None
+# -- in the ring's panel ---------------------------------------------------
 
-    @classmethod
-    def show(cls, ctrl, near=None):
-        if cls._open is not None:
-            try:
-                cls._open.win.deiconify()
-                cls._open.win.lift()
-                cls._open.win.focus_force()
-                return cls._open
-            except tk.TclError:
-                cls._open = None
-        cls._open = cls(ctrl, near)
-        return cls._open
+_view = {"month": None, "day": None}
 
-    def __init__(self, ctrl, near=None):
-        self.ctrl = ctrl
+
+def build(menu, frame):
+    """The month, the chosen day's agenda, and the world clock."""
+    CalendarPanel(menu, frame)
+
+
+class CalendarPanel:
+    def __init__(self, menu, frame):
+        self.menu = menu
+        self.s = menu.s
         today = dt.date.today()
-        self.month = today.replace(day=1)
-        self.day = today
-        win = self.win = tk.Toplevel(ctrl.root)
-        win.title("Calendar")
-        win.configure(bg=common.BG)
-        win.resizable(False, False)
-        win.attributes("-topmost", True)
-        win.protocol("WM_DELETE_WINDOW", self.close)
-        win.bind("<Escape>", lambda _e: self.close())
-        outer = tk.Frame(win, bg=common.BG, padx=16, pady=14)
-        outer.pack()
-        head = tk.Frame(outer, bg=common.BG)
-        head.pack(fill="x")
-        self.title = tk.Label(head, text="", bg=common.BG, fg=common.TEXT,
-                              font=(common.FONT, 14, "bold"))
-        self.title.pack(side="left")
+        if _view["day"] is None:
+            _view["day"] = today
+            _view["month"] = today.replace(day=1)
+        self.outer = frame
+        menu.header(frame, "Calendar", "key 7")
+        self.body = tk.Frame(frame, bg=common.PANEL)
+        self.body.pack(fill="x")
+        self.render()
+
+    # month, day, agenda, clocks -----------------------------------------------
+
+    def render(self):
+        for child in self.body.winfo_children():
+            child.destroy()
+        m, s = self.menu, self.s
+        data = load()
+        today = dt.date.today()
+        month, day = _view["month"], _view["day"]
+
+        nav = tk.Frame(self.body, bg=common.PANEL)
+        nav.pack(fill="x")
+        tk.Label(nav, text=month.strftime("%B %Y"), bg=common.PANEL,
+                 fg=common.TEXT, font=m.f(12, True)).pack(side="left")
         for text, step in (("›", 1), ("Today", 0), ("‹", -1)):
-            b = common._button(head, text, lambda s=step: self.go(s))
-            b.configure(padx=10, pady=3)
-            b.pack(side="right", padx=(4, 0))
-        self.grid = tk.Frame(outer, bg=common.BG)
-        self.grid.pack(pady=(10, 0))
-        for i, name in enumerate(("Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
-                                  "Sun")):
-            tk.Label(self.grid, text=name, bg=common.BG, fg=common.MUTED,
-                     font=(common.FONT, 9, "bold"), width=5).grid(
-                row=0, column=i, pady=(0, 4))
-        self.cells = []
-        for r in range(6):
-            for c in range(7):
-                b = tk.Button(self.grid, width=4, height=2, relief="flat",
-                              highlightthickness=0,
-                              bd=0, font=(common.FONT, 10), cursor="hand2",
-                              activebackground=common.ACCENT,
-                              activeforeground="#FFFFFF")
-                b.grid(row=r + 1, column=c, padx=1, pady=1)
-                self.cells.append(b)
-        tk.Frame(outer, bg=common.LINE, height=1).pack(fill="x", pady=(12, 8))
-        self.day_title = tk.Label(outer, text="", bg=common.BG,
-                                  fg=common.TEXT, font=(common.FONT, 11,
-                                                        "bold"))
-        self.day_title.pack(anchor="w")
-        self.items = tk.Frame(outer, bg=common.BG)
-        self.items.pack(fill="x", pady=(4, 6))
-        add_row = tk.Frame(outer, bg=common.BG)
-        add_row.pack(fill="x")
+            b = m.button(nav, text, lambda st=step: self.go(st))
+            b.configure(padx=int(8 * s), pady=int(2 * s))
+            b.pack(side="right", padx=(int(3 * s), 0))
+
+        grid = tk.Frame(self.body, bg=common.PANEL)
+        grid.pack(pady=(int(6 * s), 0))
+        for i, name in enumerate("MTWTFSS"):
+            tk.Label(grid, text=name, bg=common.PANEL, fg=common.MUTED,
+                     font=m.f(10, True), width=4).grid(row=0, column=i)
+        weeks = calendar.Calendar(0).monthdatescalendar(month.year,
+                                                        month.month)
+        for r, week in enumerate(weeks):
+            for c, d in enumerate(week):
+                inside = d.month == month.month
+                marked = d.isoformat() in data
+                if d == day:
+                    bg, fg = common.ACCENT, "#FFFFFF"
+                elif d == today:
+                    bg, fg = common.ROW, "#FFFFFF"
+                else:
+                    bg, fg = common.PANEL, common.TEXT if inside else "#5F6676"
+                cell = tk.Label(grid, text=str(d.day) + ("\n•" if marked
+                                                          else "\n "),
+                                bg=bg, fg=fg, font=m.f(11), width=4,
+                                cursor="hand2", pady=int(1 * s))
+                cell.grid(row=r + 1, column=c, padx=1, pady=1)
+                cell.bind("<Button-1>", lambda _e, d=d: self.pick(d))
+
+        tk.Frame(self.body, bg=common.LINE, height=1).pack(
+            fill="x", pady=(int(8 * s), int(6 * s)))
+        tk.Label(self.body, text=day.strftime("%A, %d %B"), bg=common.PANEL,
+                 fg=common.TEXT, font=m.f(11, True), anchor="w").pack(
+            fill="x")
+        items = data.get(day.isoformat(), [])
+        if not items:
+            tk.Label(self.body, text="Nothing planned.", bg=common.PANEL,
+                     fg=common.MUTED, font=m.f(10), anchor="w").pack(fill="x")
+        for i, item in enumerate(items):
+            row = tk.Frame(self.body, bg=common.ROW)
+            row.pack(fill="x", pady=(int(3 * s), 0))
+            tk.Label(row, text=item.get("time") or "—", bg=common.ROW,
+                     fg=common.MUTED, font=m.f(10), width=6,
+                     anchor="w").pack(side="left", padx=(int(6 * s), 0))
+            tk.Label(row, text=item.get("text", ""), bg=common.ROW,
+                     fg=common.TEXT, font=m.f(11), anchor="w",
+                     justify="left",
+                     wraplength=m.panel_width() - int(110 * s)).pack(
+                side="left", fill="x", expand=True, pady=int(4 * s))
+            delete = tk.Label(row, text="Delete", bg=common.ROW,
+                              fg="#F28B82", font=m.f(10), cursor="hand2",
+                              padx=int(8 * s))
+            delete.pack(side="right")
+            delete.bind("<Button-1>", lambda _e, i=i: self.remove(i))
+
+        add_row = tk.Frame(self.body, bg=common.PANEL)
+        add_row.pack(fill="x", pady=(int(6 * s), 0))
         self.time_var = tk.StringVar()
         self.text_var = tk.StringVar()
-        tk.Entry(add_row, textvariable=self.time_var, width=6, bg=common.ROW,
-                 fg=common.TEXT, insertbackground=common.TEXT, relief="flat",
-                 font=(common.FONT, 10)).pack(side="left", ipady=5)
-        self.entry = tk.Entry(add_row, textvariable=self.text_var, width=26,
-                              bg=common.ROW, fg=common.TEXT,
-                              insertbackground=common.TEXT, relief="flat",
-                              font=(common.FONT, 10))
-        self.entry.pack(side="left", padx=6, ipady=5, fill="x", expand=True)
-        self.entry.bind("<Return>", self._add)
-        common._button(add_row, "+ Add", self._add, primary=True).pack(
-            side="left")
-        self.hint = tk.Label(outer, text="Time is optional (e.g. 9:30); "
-                             "timed items remind you.", bg=common.BG,
-                             fg=common.MUTED, font=(common.FONT, 8))
-        self.hint.pack(anchor="w", pady=(6, 0))
-        self.render()
-        win.update_idletasks()
-        if near:
-            x, y = near
-            x = max(0, min(x, win.winfo_screenwidth() - win.winfo_reqwidth()))
-            y = max(0, min(y, win.winfo_screenheight() - win.winfo_reqheight()
-                           - 48))
-            win.geometry("+%d+%d" % (x, y))
-            win.lift()
-            win.focus_force()
-        else:
-            common._center(win)
-        self.entry.focus_set()
+        t = tk.Entry(add_row, textvariable=self.time_var, width=5,
+                     bg=common.ROW, fg=common.TEXT, relief="flat",
+                     insertbackground=common.TEXT, highlightthickness=0,
+                     font=m.f(11))
+        t.pack(side="left", ipady=int(4 * s))
+        e = tk.Entry(add_row, textvariable=self.text_var, bg=common.ROW,
+                     fg=common.TEXT, relief="flat", highlightthickness=0,
+                     insertbackground=common.TEXT, font=m.f(11))
+        e.pack(side="left", fill="x", expand=True, padx=int(4 * s),
+               ipady=int(4 * s))
+        e.bind("<Return>", self.add)
+        b = m.button(add_row, "+ Add", self.add, primary=True)
+        b.configure(padx=int(10 * s), pady=int(3 * s))
+        b.pack(side="left")
+        self.hint = tk.Label(self.body, text="Time optional (9:30). Timed "
+                             "items remind you.", bg=common.PANEL,
+                             fg=common.MUTED, font=m.f(9), anchor="w")
+        self.hint.pack(fill="x", pady=(int(3 * s), 0))
+
+        self.clocks()
+        m.relayout()
+
+    def clocks(self):
+        from . import worldclock
+        m, s = self.menu, self.s
+        tk.Frame(self.body, bg=common.LINE, height=1).pack(
+            fill="x", pady=(int(8 * s), int(6 * s)))
+        tk.Label(self.body, text="World clock  ·  click a city to change it",
+                 bg=common.PANEL, fg=common.MUTED, font=m.f(9),
+                 anchor="w").pack(fill="x")
+        grid = tk.Frame(self.body, bg=common.PANEL)
+        grid.pack(fill="x", pady=(int(4 * s), 0))
+        grid.columnconfigure(0, weight=1)
+        grid.columnconfigure(1, weight=1)
+        labels = []
+        for slot, name in enumerate(worldclock.chosen()):
+            tile = tk.Frame(grid, bg=common.ROW, cursor="hand2",
+                            padx=int(8 * s), pady=int(5 * s))
+            tile.grid(row=slot // 2, column=slot % 2, sticky="we",
+                      padx=(0 if slot % 2 == 0 else int(3 * s), 0),
+                      pady=(0, int(3 * s)))
+            city = tk.Label(tile, text=name, bg=common.ROW, fg=common.MUTED,
+                            font=m.f(10), anchor="w")
+            city.pack(fill="x")
+            time_l = tk.Label(tile, text="", bg=common.ROW, fg="#FFFFFF",
+                              font=m.f(16, True), anchor="w")
+            time_l.pack(fill="x")
+            for w in (tile, city, time_l):
+                w.bind("<Button-1>", lambda _e, sl=slot: self.pick_city(sl))
+            labels.append((name, time_l))
+
+        def tick():
+            try:
+                if not grid.winfo_exists():
+                    return
+                for name, label in labels:
+                    hhmm, wday, rel = worldclock.describe(name)
+                    label.configure(text="%s  %s" % (hhmm, rel or wday))
+            except tk.TclError:
+                return
+            grid.after(15000, tick)
+
+        tick()
+
+    def pick_city(self, slot):
+        from . import worldclock
+        menu = self.menu
+
+        def build_picker(frame):
+            s = menu.s
+            menu.header(frame, "Choose a city", close=True)
+            query = tk.StringVar()
+            entry = tk.Entry(frame, textvariable=query, bg=common.ROW,
+                             fg=common.TEXT, relief="flat",
+                             highlightthickness=0,
+                             insertbackground=common.TEXT, font=menu.f(11))
+            entry.pack(fill="x", ipady=int(4 * s), pady=(0, int(6 * s)))
+            box = tk.Listbox(frame, height=10, bg=common.ROW, fg=common.TEXT,
+                             selectbackground=common.ACCENT,
+                             selectforeground="#FFFFFF", relief="flat",
+                             highlightthickness=0, activestyle="none",
+                             font=menu.f(12))
+            box.pack(fill="x")
+            names = sorted(worldclock.CITIES)
+
+            def fill(*_a):
+                box.delete(0, "end")
+                q = query.get().strip().lower()
+                for n in names:
+                    if q in n.lower():
+                        hhmm, _w, rel = worldclock.describe(n)
+                        box.insert("end", "%s   %s%s" % (
+                            n, hhmm, ("  " + rel) if rel else ""))
+
+            def pick(_e=None):
+                sel = box.curselection()
+                if not sel:
+                    sel = (0,) if box.size() else ()
+                if not sel:
+                    return
+                name = box.get(sel[0]).split("   ")[0]
+                worldclock.choose(slot, name)
+                menu.select(menu.selected)
+
+            query.trace_add("write", fill)
+            box.bind("<Double-Button-1>", pick)
+            box.bind("<ButtonRelease-1>", pick)
+            entry.bind("<Return>", pick)
+            menu.note(frame, "Daylight saving is followed automatically.")
+            fill()
+            entry.focus_set()
+
+        menu.show_view(build_picker, pinned=True, name="cities")
+
+    # actions -----------------------------------------------------------------
 
     def go(self, step):
         if step == 0:
             today = dt.date.today()
-            self.month, self.day = today.replace(day=1), today
+            _view["month"], _view["day"] = today.replace(day=1), today
         else:
-            y, m = self.month.year, self.month.month + step
-            y, m = y + (m - 1) // 12, (m - 1) % 12 + 1
-            self.month = dt.date(y, m, 1)
+            month = _view["month"]
+            y, mth = month.year, month.month + step
+            y, mth = y + (mth - 1) // 12, (mth - 1) % 12 + 1
+            _view["month"] = dt.date(y, mth, 1)
         self.render()
 
     def pick(self, day):
-        self.day = day
-        if day.month != self.month.month:
-            self.month = day.replace(day=1)
+        _view["day"] = day
+        if day.month != _view["month"].month:
+            _view["month"] = day.replace(day=1)
         self.render()
-        self.entry.focus_set()
 
-    def render(self):
-        data = load()
-        today = dt.date.today()
-        self.title.configure(text=self.month.strftime("%B %Y"))
-        weeks = calendar.Calendar(0).monthdatescalendar(self.month.year,
-                                                        self.month.month)
-        days = [d for w in weeks for d in w]
-        days += [days[-1] + dt.timedelta(days=i + 1)
-                 for i in range(42 - len(days))]
-        for cell, day in zip(self.cells, days):
-            inside = day.month == self.month.month
-            marked = day.isoformat() in data
-            label = str(day.day) + ("\n•" if marked else "\n ")
-            if day == self.day:
-                bg, fg = common.ACCENT, "#FFFFFF"
-            elif day == today:
-                bg, fg = common.ROW, "#FFFFFF"
-            else:
-                bg, fg = common.BG, common.TEXT if inside else "#5F6676"
-            cell.configure(text=label, bg=bg, fg=fg,
-                           command=lambda d=day: self.pick(d))
-        self.day_title.configure(text=self.day.strftime("%A, %d %B"))
-        for child in self.items.winfo_children():
-            child.destroy()
-        items = data.get(self.day.isoformat(), [])
-        if not items:
-            tk.Label(self.items, text="Nothing planned.", bg=common.BG,
-                     fg=common.MUTED, font=(common.FONT, 9)).pack(anchor="w")
-        for i, item in enumerate(items):
-            row = tk.Frame(self.items, bg=common.PANEL, padx=8, pady=5)
-            row.pack(fill="x", pady=1)
-            tk.Label(row, text=item.get("time") or "—", bg=common.PANEL,
-                     fg=common.MUTED, font=(common.FONT, 9), width=6,
-                     anchor="w").pack(side="left")
-            tk.Label(row, text=item.get("text", ""), bg=common.PANEL,
-                     fg=common.TEXT, font=(common.FONT, 10), anchor="w",
-                     wraplength=240, justify="left").pack(side="left",
-                                                          fill="x",
-                                                          expand=True)
-            x = tk.Label(row, text="✕", bg=common.PANEL, fg=common.MUTED,
-                         font=(common.FONT, 9), cursor="hand2")
-            x.pack(side="right")
-            x.bind("<Button-1>", lambda _e, i=i: self._remove(i))
-
-    def _add(self, _e=None):
+    def add(self, _e=None):
         text = self.text_var.get().strip()
         if not text:
             return
         when = parse_time(self.time_var.get())
         if when is None:
-            self.hint.configure(text="That time is not clear. Try 9:30 or "
-                                "14:00.", fg="#F28B82")
+            self.hint.configure(text="That time is not clear. Try 9:30.",
+                                fg="#F28B82")
             return
-        add(self.day, text, when)
-        self.time_var.set("")
-        self.text_var.set("")
-        self.hint.configure(text="Time is optional (e.g. 9:30); timed items "
-                            "remind you.", fg=common.MUTED)
+        add(_view["day"], text, when)
         self.render()
 
-    def _remove(self, index):
-        remove(self.day, index)
+    def remove(self, index):
+        remove(_view["day"], index)
         self.render()
-
-    def close(self):
-        CalendarWindow._open = None
-        try:
-            self.win.destroy()
-        except Exception:
-            pass
-
-
-def calendar_cmd(ctrl, near=None, **_):
-    CalendarWindow.show(ctrl, near)

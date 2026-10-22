@@ -342,188 +342,173 @@ def push(device, files, progress=None):
     return len(files)
 
 
-# -- windows ---------------------------------------------------------------
+# -- in the ring's panel ---------------------------------------------------
+#
+# Send, Receive and Phone all show in the panel beside the ring; the QR
+# code is drawn in the middle of the ring itself (menu.set_qr).
 
-class ShareWindow:
-    """The QR code, the address, and what has come and gone."""
+def _share_view(ctrl, menu, title, intro, shared=()):
+    """The QR code in the ring, what is happening in the panel."""
+    events = queue.Queue()
+    server = Server(shared, True, events)
+    pending = []
+    received = []
 
-    def __init__(self, ctrl, title, intro, shared=(), receive=True):
-        self.ctrl = ctrl
-        self.events = queue.Queue()
-        self.server = Server(shared, receive, self.events)
-        self.server.ask = self._ask
-        self.pending = []
-        win = self.win = tk.Toplevel(ctrl.root)
-        win.title(title)
-        win.configure(bg=common.BG)
-        win.resizable(False, False)
-        win.attributes("-topmost", True)
-        win.protocol("WM_DELETE_WINDOW", self.close)
-        frame = tk.Frame(win, bg=common.BG, padx=22, pady=18)
-        frame.pack()
-        tk.Label(frame, text=title, bg=common.BG, fg=common.TEXT,
-                 font=(common.FONT, 13, "bold")).pack(anchor="w")
-        tk.Label(frame, text=intro, bg=common.BG, fg=common.MUTED,
-                 font=(common.FONT, 9), justify="left",
-                 wraplength=300).pack(anchor="w", pady=(2, 12))
-        canvas = tk.Canvas(frame, width=240, height=240, bg="#FFFFFF",
-                           highlightthickness=0)
-        canvas.pack()
-        qr.draw(canvas, self.server.url, 0, 0, 240)
-        tk.Label(frame, text=self.server.url, bg=common.BG, fg=common.MUTED,
-                 font=(common.FONT, 8)).pack(pady=(8, 0))
-        visible = ("Other computers see this one as “%s” while this window "
-                   "is open." % device_name()) if receive else ""
-        if visible:
-            tk.Label(frame, text=visible, bg=common.BG, fg=common.MUTED,
-                     font=(common.FONT, 9), wraplength=300,
-                     justify="left").pack(anchor="w", pady=(10, 0))
-        self.status = tk.Label(frame, text="Same Wi-Fi only. Waiting…",
-                               bg=common.BG, fg=common.TEXT,
-                               font=(common.FONT, 10), wraplength=300,
-                               justify="left")
-        self.status.pack(anchor="w", pady=(10, 0))
-        buttons = tk.Frame(frame, bg=common.BG)
-        buttons.pack(anchor="e", pady=(14, 0))
-        if receive:
-            common._button(buttons, "Open folder", lambda: common.reveal(
-                common.received_dir())).pack(side="left", padx=(0, 8))
-        common._button(buttons, "Done", self.close, primary=True).pack(
-            side="left")
-        self.received = []
-        common._center(win)
-        self._poll()
-
-    def _ask(self, offer):
-        """Runs on a server thread: hand the question to Tk, wait."""
+    def ask(offer):                     # on a server thread
         box = queue.Queue()
-        self.pending.append((offer, box))
+        pending.append((offer, box))
         try:
             return box.get(timeout=60)
         except queue.Empty:
             return False
 
-    def _poll(self):
-        try:
-            while self.pending:
-                offer, box = self.pending.pop(0)
+    server.ask = ask
+
+    def stop():
+        server.stop()
+        for _offer, box in pending:
+            box.put(False)
+        if received:
+            common.tell(ctrl, "%d file%s received." % (
+                len(received), "" if len(received) == 1 else "s"),
+                received[-1])
+
+    def build(frame):
+        s = menu.s
+        menu.on_clear(stop)
+        menu.set_qr(server.url)
+        menu.header(frame, title, close=True)
+        tk.Label(frame, text=intro, bg=common.PANEL, fg=common.MUTED,
+                 font=menu.f(10), justify="left", anchor="w",
+                 wraplength=menu.panel_width()).pack(fill="x")
+        status = tk.Label(frame, text="Waiting…  (same Wi-Fi only)",
+                          bg=common.PANEL, fg=common.TEXT, font=menu.f(11),
+                          justify="left", anchor="w",
+                          wraplength=menu.panel_width())
+        status.pack(fill="x", pady=(int(10 * s), 0))
+        ask_area = tk.Frame(frame, bg=common.PANEL)
+        ask_area.pack(fill="x")
+        menu.note(frame, "Other computers see this one as “%s”. Files go to "
+                  "Downloads\\Squint\\Received." % device_name())
+        row = tk.Frame(frame, bg=common.PANEL)
+        row.pack(fill="x", pady=(int(10 * s), 0))
+        menu.button(row, "Done", menu.back, primary=True).pack(side="right")
+        menu.button(row, "Open folder", lambda: common.reveal(
+            common.received_dir())).pack(side="right", padx=(0, int(6 * s)))
+        asking = {"box": None}
+
+        def answer(yes):
+            box = asking["box"]
+            asking["box"] = None
+            for child in ask_area.winfo_children():
+                child.destroy()
+            if box is not None:
+                box.put(yes)
+            status.configure(text="Accepted. Receiving…" if yes
+                             else "Declined.")
+            menu.relayout()
+
+        def poll():
+            if menu.closed or not frame.winfo_exists():
+                return
+            if pending and asking["box"] is None:
+                offer, box = pending.pop(0)
+                asking["box"] = box
                 files = offer.get("files", [])
                 size = sum(int(f.get("size", 0)) for f in files)
                 names = ", ".join(f.get("name", "?") for f in files[:3])
                 if len(files) > 3:
                     names += " and %d more" % (len(files) - 3)
-                answer = common.ask_choice(
-                    self.ctrl.root, "Incoming files",
-                    "%s wants to send %d file%s (%s):\n%s" % (
-                        offer.get("from", "A computer"), len(files),
-                        "" if len(files) == 1 else "s", _size(size), names),
-                    [("yes", "Accept"), ("no", "Decline")])
-                box.put(answer == "yes")
-            while True:
-                event = self.events.get_nowait()
-                kind = event[0]
-                if kind == "receiving":
-                    _k, name, got, total = event
-                    pct = int(100 * got / total) if total else 0
-                    self.status.configure(text="Receiving %s  %d%%" % (name,
-                                                                        pct))
-                elif kind == "received":
-                    self.received.append(event[1])
-                    self.status.configure(
-                        text="Received %d file%s → Downloads\\Squint\\Received"
-                        % (len(self.received),
-                           "" if len(self.received) == 1 else "s"))
-                elif kind == "sent":
-                    self.status.configure(text="Downloaded: %s" % event[1])
-                elif kind == "failed":
-                    self.status.configure(text="%s did not arrive completely."
-                                          % event[1])
-        except queue.Empty:
-            pass
-        except tk.TclError:
-            return
-        self.win.after(150, self._poll)
+                tk.Label(ask_area, text="%s wants to send %d file%s (%s)\n%s"
+                         % (offer.get("from", "A computer"), len(files),
+                            "" if len(files) == 1 else "s", _size(size),
+                            names), bg=common.ROW, fg=common.TEXT,
+                         font=menu.f(10), justify="left", anchor="w",
+                         wraplength=menu.panel_width() - int(16 * s),
+                         padx=int(8 * s), pady=int(6 * s)).pack(
+                    fill="x", pady=(int(8 * s), int(4 * s)))
+                buttons = tk.Frame(ask_area, bg=common.PANEL)
+                buttons.pack(fill="x")
+                menu.button(buttons, "Accept", lambda: answer(True),
+                            primary=True).pack(side="right")
+                menu.button(buttons, "Decline", lambda: answer(False)).pack(
+                    side="right", padx=(0, int(6 * s)))
+                menu.relayout()
+            try:
+                while True:
+                    event = events.get_nowait()
+                    kind = event[0]
+                    if kind == "receiving":
+                        _k, name, got, total = event
+                        status.configure(text="Receiving %s  %d%%" % (
+                            name, int(100 * got / total) if total else 0))
+                    elif kind == "received":
+                        received.append(event[1])
+                        status.configure(text="✓ Received %d file%s" % (
+                            len(received), "" if len(received) == 1 else "s"))
+                    elif kind == "sent":
+                        status.configure(text="✓ Downloaded to the phone: %s"
+                                         % event[1])
+                    elif kind == "failed":
+                        status.configure(text="%s did not arrive completely."
+                                         % event[1])
+            except queue.Empty:
+                pass
+            ctrl.root.after(150, poll)
 
-    def close(self):
-        self.server.stop()
-        try:
-            self.win.destroy()
-        except Exception:
-            pass
-        if self.received:
-            common.tell(self.ctrl, "%d file%s received." % (
-                len(self.received), "" if len(self.received) == 1 else "s"),
-                self.received[-1])
+        poll()
+
+    menu.show_view(build, pinned=True, name="send")
 
 
-def receive_cmd(ctrl, **_):
-    ShareWindow(ctrl, "Receive files",
-                "Scan with a phone to send from it, or pick this computer "
-                "under Send on another one.", receive=True)
+def receive_cmd(ctrl, menu=None, **_):
+    _share_view(ctrl, menu, "Receive files",
+                "Scan the code with a phone's camera to send from it, or "
+                "pick this computer under Send on another one.")
 
 
-def phone_cmd(ctrl, selection=None, anchor=None, **_):
+def phone_cmd(ctrl, selection=None, menu=None, **_):
     files = [p for p in (selection or []) if os.path.isfile(p)]
-
-    def open_window(files):
-        ShareWindow(ctrl, "Phone via QR",
-                    "Scan with the phone's camera. Phone and computer must "
-                    "be on the same Wi-Fi.", shared=files, receive=True)
-
     if files:
-        open_window(files)
+        _share_view(ctrl, menu, "Phone via QR",
+                    "Scan the code with the phone's camera to download %s, "
+                    "or send files from the phone." % (
+                        "this file" if len(files) == 1
+                        else "these %d files" % len(files)), files)
         return
-    from .card import Card
-    card = Card(ctrl, "Phone via QR", anchor)
 
-    def start(values):
-        card.close()
-        chosen = []
-        if values["what"] == "send":
+    def build(frame):
+        menu.header(frame, "Phone via QR", close=True)
+
+        def send_to_phone():
             chosen = common.pick_files(ctrl, "Files for the phone",
                                        [("All files", "*.*")])
-            if not chosen:
-                return
-        open_window(chosen)
+            if chosen:
+                phone_cmd(ctrl, chosen, menu)
 
-    card.form([{"kind": "choice", "key": "what", "label": "What to do",
-                "options": [("send", "Send to phone"),
-                            ("get", "Get from phone")],
-                "default": "get"}], "Show QR code", start)
+        menu.row(frame, "Send files to my phone", send_to_phone, "A")
+        menu.row(frame, "Get files from my phone", lambda: _share_view(
+            ctrl, menu, "Phone via QR", "Scan the code with the phone's "
+            "camera, then choose the photos or files to send."), "B")
+        menu.note(frame, "Phone and computer must be on the same Wi-Fi.")
+
+    menu.show_view(build, pinned=True, name="phone")
 
 
-def nearby_cmd(ctrl, selection=None, anchor=None, **_):
+def nearby_cmd(ctrl, selection=None, menu=None, **_):
     files = common.pick_files(ctrl, "Files to send", [("All files", "*.*")],
                               selection=[p for p in (selection or [])
                                          if os.path.isfile(p)])
     if not files:
         return
-    win = tk.Toplevel(ctrl.root)
-    win.title("Send to a nearby device")
-    win.configure(bg=common.BG)
-    win.attributes("-topmost", True)
-    frame = tk.Frame(win, bg=common.BG, padx=22, pady=18)
-    frame.pack()
-    tk.Label(frame, text="Send %d file%s to" % (len(files), "" if len(files) == 1
-                                                 else "s"),
-             bg=common.BG, fg=common.TEXT,
-             font=(common.FONT, 13, "bold")).pack(anchor="w")
-    tk.Label(frame, text="Open Receive on the other computer. Same Wi-Fi only.",
-             bg=common.BG, fg=common.MUTED, font=(common.FONT, 9)).pack(
-        anchor="w", pady=(2, 10))
-    listing = tk.Frame(frame, bg=common.BG)
-    listing.pack(fill="x")
-    searching = tk.Label(frame, text="Looking…", bg=common.BG, fg=common.MUTED,
-                         font=(common.FONT, 9))
-    searching.pack(anchor="w", pady=(8, 0))
-    common._button(frame, "Cancel", win.destroy).pack(anchor="e", pady=(12, 0))
-    shown = {}
+    token = object()
+    state = {"token": token, "shown": {}}
 
     def choose(device):
-        win.destroy()
         from .card import Card
         card = Card(ctrl, "Send to %s" % device["name"], None,
-                    "%d file%s" % (len(files), "" if len(files) == 1 else "s"))
+                    "%d file%s" % (len(files), "" if len(files) == 1 else "s"),
+                    host=menu)
 
         class Bar:
             def set(self, fraction, text=None):
@@ -537,26 +522,41 @@ def nearby_cmd(ctrl, selection=None, anchor=None, **_):
             n, "" if n == 1 else "s"), None),
             "Sending to %s…" % device["name"])
 
-    def look():
-        if not win.winfo_exists():
-            return
-        common.in_background(ctrl, find_devices, show, "Looking for devices")
+    def build(frame):
+        s = menu.s
+        menu.header(frame, "Send %d file%s to" % (
+            len(files), "" if len(files) == 1 else "s"), close=True)
+        listing = tk.Frame(frame, bg=common.PANEL)
+        listing.pack(fill="x")
+        searching = tk.Label(frame, text="Looking for computers…",
+                             bg=common.PANEL, fg=common.MUTED,
+                             font=menu.f(10), anchor="w")
+        searching.pack(fill="x", pady=(int(4 * s), 0))
+        menu.note(frame, "Open Squint's Receive on the other computer. "
+                  "Same Wi-Fi only.")
+        menu.on_clear(lambda: state.update(token=None))
 
-    def show(devices):
-        try:
-            if not win.winfo_exists():
+        def show(devices):
+            if state["token"] is not token or menu.closed:
                 return
-        except tk.TclError:
-            return
-        for d in devices:
-            if d["ip"] not in shown:
-                b = common._button(listing, "%s   (%s)" % (d["name"], d["ip"]),
-                                   lambda d=d: choose(d))
-                b.configure(anchor="w", width=36)
-                b.pack(fill="x", pady=2)
-                shown[d["ip"]] = b
-        searching.configure(text="Looking…" if not shown else "")
-        win.after(1500, look)
+            changed = False
+            for d in devices:
+                if d["ip"] not in state["shown"]:
+                    state["shown"][d["ip"]] = menu.row(
+                        listing, "%s   %s" % (d["name"], d["ip"]),
+                        lambda d=d: choose(d))
+                    changed = True
+            searching.configure(text="" if state["shown"]
+                                else "Looking for computers…")
+            if changed:
+                menu.relayout()
+            ctrl.root.after(1500, look)
 
-    common._center(win)
-    look()
+        def look():
+            if state["token"] is token and not menu.closed:
+                common.in_background(ctrl, find_devices, show,
+                                     "Looking for devices")
+
+        look()
+
+    menu.show_view(build, pinned=True, name="nearby")

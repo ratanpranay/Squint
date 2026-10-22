@@ -1,9 +1,20 @@
-"""The ring itself: drawn on a canvas covering the monitor under the mouse.
+"""The ring, and the one panel beside it where every tool shows its options,
+settings, progress, calendar, QR status or camera. Nothing opens a window
+of its own while the ring is up.
 
-On Windows the canvas background is a colour the window is told to treat
-as transparent, so only the ring and the panel are visible and everything
-else on the screen stays clickable. Clicking elsewhere takes the focus
-away, and losing focus closes the menu."""
+The ring is drawn on a canvas covering the monitor under the mouse. On
+Windows the canvas background is a colour the window treats as
+transparent, so only the ring and the panel are visible and the rest of
+the screen stays clickable.
+
+The panel is a real Tk frame placed on the canvas. It shows one view at a
+time:
+  list      a tool's actions (hovering another tool switches)
+  calendar  shown on hover, hidden once the mouse has left it
+  pinned    anything the user is in the middle of: settings, progress, the
+            QR code, the camera. Hovering does not switch away from it and
+            losing focus does not close the ring; Esc or ✕ goes back.
+"""
 import math
 import sys
 import tkinter as tk
@@ -18,24 +29,32 @@ RING_BG = "#181B22"
 ITEM_BG = "#262A33"
 ITEM_LINE = "#3A404C"
 HUB_BG = "#11131A"
+HEART = "#F0506E"
 
 
 class RadialMenu:
     current = None
 
-    def __init__(self, ctrl, tools, calendar_cmd, front=None):
+    def __init__(self, ctrl, tools, front=None, support_url=""):
         RadialMenu.current = self
         self.ctrl = ctrl
         self.tools = tools
-        self.calendar_cmd = calendar_cmd
         self.front = front
+        self.support_url = support_url
         self.selected = 0
-        self.hover_row = None
         self.closed = False
+        self.pinned = False
+        self.card = None
+        self.view = None
+        self.hub_qr = None
+        self.heart_hover = False
+        self._cleanups = []
+        self._away = 0
+        self._engaged = False
 
         root = ctrl.root
         px, py = root.winfo_pointerxy()
-        mon = self._monitor(px, py)
+        self.mon = mon = self._monitor(px, py)
         scale = 1.0
         try:
             from .. import platform_util
@@ -43,7 +62,6 @@ class RadialMenu:
         except Exception:
             pass
         self.s = s = max(1.0, scale)
-        self.mon = mon
         left, top, width, height = mon
 
         win = self.win = tk.Toplevel(root)
@@ -56,14 +74,13 @@ class RadialMenu:
             win.attributes("-transparentcolor", KEY)
         else:
             try:
-                win.attributes("-alpha", 0.93)
+                win.attributes("-alpha", 0.95)
             except tk.TclError:
                 pass
         self.canvas = tk.Canvas(win, width=width, height=height, bg=bg,
                                 highlightthickness=0, bd=0)
         self.canvas.pack()
 
-        # The ring's centre: the mouse, moved in just enough to fit.
         margin = 215 * s
         self.cx = min(max(px - left, margin), width - margin)
         self.cy = min(max(py - top, margin), height - margin)
@@ -72,19 +89,29 @@ class RadialMenu:
         self.icon_font = next((f for f in ("Segoe Fluent Icons",
                                            "Segoe MDL2 Assets")
                                if f in families), None)
-        self.font = common.FONT
-        self._draw()
+
+        # The panel: a border frame holding a padded content frame.
+        self.panel_outer = tk.Frame(self.canvas, bg=ITEM_LINE)
+        self.panel = tk.Frame(self.panel_outer, bg=common.PANEL,
+                              padx=int(14 * s), pady=int(12 * s))
+        self.panel.pack(padx=1, pady=1)
+        self.panel_item = self.canvas.create_window(
+            0, 0, window=self.panel_outer, anchor="nw")
+
+        self._draw_ring()
+        self.select(0)
 
         c = self.canvas
         c.bind("<Motion>", self._motion)
         c.bind("<Button-1>", self._click)
         c.bind("<Button-3>", lambda _e: self.close())
-        win.bind("<Escape>", lambda _e: self.close())
         win.bind("<Key>", self._key)
+        win.bind("<Escape>", self._escape)
         win.bind("<FocusOut>", self._focus_out)
         win.after(10, self._take_focus)
+        win.after(150, self._watch_pointer)
 
-    # -- geometry ----------------------------------------------------------
+    # -- sizes ---------------------------------------------------------------
 
     @staticmethod
     def _monitor(px, py):
@@ -97,137 +124,268 @@ class RadialMenu:
             pass
         return (0, 0, 1920, 1080)
 
-    def _f(self, size, bold=False):
-        return (self.font, -int(round(size * self.s)),
+    def f(self, size, bold=False):
+        return (common.FONT, -int(round(size * self.s)),
                 "bold" if bold else "normal")
+
+    def panel_width(self):
+        """The content width every view is laid out to."""
+        wide = self.tools[self.selected].get("wide")
+        return int((330 if wide else 290) * self.s)
 
     def _item_xy(self, i):
         a = math.radians(-90 + i * 40)
         r = 150 * self.s
         return self.cx + r * math.cos(a), self.cy + r * math.sin(a), a
 
-    def _panel_box(self):
-        key, _l, _full, _g, rows, note = self.tools[self.selected]
+    # -- the ring ------------------------------------------------------------
+
+    def _draw_ring(self):
+        c, s = self.canvas, self.s
+        c.delete("ring")
+        cx, cy = self.cx, self.cy
+        r = 200 * s
+        c.create_oval(cx - r, cy - r, cx + r, cy + r, fill=RING_BG,
+                      outline="#343944", width=max(1, int(s)), tags="ring")
+        self.item_hits = []
+        for i, tool in enumerate(self.tools):
+            x, y, _a = self._item_xy(i)
+            rr = 42 * s
+            on = i == self.selected
+            fg = "#FFFFFF" if on else "#D5D9E2"
+            c.create_oval(x - rr, y - rr, x + rr, y + rr,
+                          fill=common.ACCENT if on else ITEM_BG,
+                          outline=common.ACCENT if on else ITEM_LINE,
+                          width=max(1, int(s)), tags="ring")
+            if self.icon_font:
+                c.create_text(x, y - 9 * s, text=tool["glyph"], fill=fg,
+                              font=(self.icon_font, -int(22 * s)), tags="ring")
+            else:
+                c.create_text(x, y - 6 * s, text=str(i + 1), fill=fg,
+                              font=self.f(16, True), tags="ring")
+            c.create_text(x, y + 16 * s, text=tool["label"], fill=fg,
+                          font=self.f(11, True), tags="ring")
+            self.item_hits.append((x, y, rr))
+        if self.hub_qr:
+            self._draw_qr()
+        else:
+            self._draw_hub()
+        c.create_text(cx, cy + r + 22 * s,
+                      text="1–9 picks a tool · letters pick an action · "
+                           "Esc goes back",
+                      fill="#C9CED8", font=self.f(11), tags="ring")
+        c.tag_raise(self.panel_item)
+
+    def _draw_hub(self):
+        c, s, cx, cy = self.canvas, self.s, self.cx, self.cy
+        hr = 64 * s
+        c.create_oval(cx - hr, cy - hr, cx + hr, cy + hr, fill=HUB_BG,
+                      outline=ITEM_LINE, width=max(1, int(s)), tags="ring")
+        # Support, at the top of the hub.
+        hx, hy = cx, cy - 36 * s
+        self.heart_hit = (hx, hy, 14 * s)
+        self._heart(hx, hy, (9.5 if self.heart_hover else 8) * s,
+                    HEART if self.heart_hover else "#C8546A")
+        title = "Support Squint" if self.heart_hover else \
+            self.tools[self.selected]["full"]
+        c.create_text(cx, cy + 2 * s, text=title, fill="#FFFFFF",
+                      font=self.f(14, True), width=110 * s, justify="center",
+                      tags="ring")
+        c.create_text(cx, cy + 30 * s, text="Ctrl + Alt + Space",
+                      fill=common.MUTED, font=self.f(10), tags="ring")
+
+    def _heart(self, x, y, size, colour):
+        """A heart drawn as a shape, so it looks the same on every PC."""
+        points = []
+        for k in range(48):
+            t = 2 * math.pi * k / 48
+            hx = 16 * math.sin(t) ** 3
+            hy = (13 * math.cos(t) - 5 * math.cos(2 * t)
+                  - 2 * math.cos(3 * t) - math.cos(4 * t))
+            points += [x + hx * size / 16.0, y - hy * size / 16.0]
+        self.canvas.create_polygon(points, fill=colour, outline="",
+                                   smooth=True, tags="ring")
+
+    def _draw_qr(self):
+        """The QR code fills the middle of the ring."""
+        from . import qr
+        c, s, cx, cy = self.canvas, self.s, self.cx, self.cy
+        side = 148 * s
+        x0, y0 = cx - side / 2, cy - side / 2
+        c.create_rectangle(x0 - 6 * s, y0 - 6 * s, x0 + side + 6 * s,
+                           y0 + side + 6 * s, fill="#FFFFFF", outline="",
+                           tags="ring")
+        rows = qr.encode(self.hub_qr)
+        n = len(rows) + 2
+        cell = side / float(n)
+        for ry, row in enumerate(rows):
+            for rx, on in enumerate(row):
+                if on:
+                    x = x0 + (rx + 1) * cell
+                    y = y0 + (ry + 1) * cell
+                    c.create_rectangle(x, y, x + cell + 0.4, y + cell + 0.4,
+                                       fill="#000000", width=0, tags="ring")
+        self.heart_hit = None
+
+    def set_qr(self, url):
+        self.hub_qr = url
+        if not self.closed:
+            self._draw_ring()
+
+    # -- the panel -----------------------------------------------------------
+
+    def on_clear(self, fn):
+        """Run `fn` when the current view goes away (camera, server…)."""
+        self._cleanups.append(fn)
+
+    def clear_panel(self):
+        for fn in self._cleanups[:]:
+            try:
+                fn()
+            except Exception as exc:      # noqa: BLE001
+                common.log("cleanup: %r" % exc)
+        self._cleanups = []
+        if self.hub_qr:
+            self.set_qr(None)
+        if self.card is not None and self.card._job is not None:
+            # Work still running: it carries on and says when it is done.
+            self.card._hidden = True
+        self.card = None
+        try:
+            self.win.unbind("<Return>")
+        except tk.TclError:
+            pass
+        for child in self.panel.winfo_children():
+            child.destroy()
+
+    def relayout(self):
+        """Fit the panel to what is in it, beside the selected tool."""
+        if self.closed:
+            return
+        self.panel_outer.update_idletasks()
+        w = self.panel_outer.winfo_reqwidth()
+        h = self.panel_outer.winfo_reqheight()
         s = self.s
         _x, _y, a = self._item_xy(self.selected)
-        c, si = math.cos(a), math.sin(a)
-        px, py = self.cx + 212 * s * c, self.cy + 212 * s * si
-        w = 250 * s
-        h = (16 + 38 + len(rows) * 42) * s + self._note_height(note, w)
-        left = px - w if c < -0.3 else (px if c > 0.3 else px - w / 2)
+        co, si = math.cos(a), math.sin(a)
+        px, py = self.cx + 212 * s * co, self.cy + 212 * s * si
+        left = px - w if co < -0.3 else (px if co > 0.3 else px - w / 2)
         top = py - h if si < -0.3 else (py if si > 0.3 else py - h / 2)
         _ml, _mt, mw, mh = self.mon
         left = min(max(left, 8 * s), mw - w - 8 * s)
         top = min(max(top, 8 * s), mh - h - 8 * s)
-        return left, top, w, h
+        self.canvas.coords(self.panel_item, left, top)
+        self.canvas.itemconfigure(self.panel_item, state="normal")
+        self.panel_box = (left, top, w, h)
 
-    def _note_height(self, note, w):
-        """Room for the footer note, wrapped to the panel's width."""
-        if not note:
-            return 8 * self.s
-        font = tkfont.Font(root=self.win, font=self._f(11))
-        width = w - 34 * self.s
-        lines, line = 1, ""
-        for word in note.split():
-            trial = (line + " " + word).strip()
-            if font.measure(trial) > width and line:
-                lines, line = lines + 1, word
-            else:
-                line = trial
-        return (26 + lines * font.metrics("linespace")) * 1.0 + 12 * self.s
+    def header(self, parent, title, right=None, close=False):
+        row = tk.Frame(parent, bg=common.PANEL)
+        row.pack(fill="x")
+        tk.Label(row, text=title, bg=common.PANEL, fg="#FFFFFF",
+                 font=self.f(13, True), anchor="w").pack(side="left")
+        if close:
+            x = tk.Label(row, text="✕", bg=common.PANEL, fg=common.MUTED,
+                         font=self.f(12), cursor="hand2")
+            x.pack(side="right")
+            x.bind("<Button-1>", lambda _e: self.back())
+        elif right:
+            tk.Label(row, text=right, bg=common.PANEL, fg=common.MUTED,
+                     font=self.f(10)).pack(side="right")
+        tk.Frame(parent, bg=common.PANEL, width=self.panel_width(),
+                 height=int(8 * self.s)).pack()
+        return row
 
-    # -- drawing -------------------------------------------------------------
+    def note(self, parent, text):
+        tk.Frame(parent, bg=ITEM_LINE, height=1).pack(
+            fill="x", pady=(int(6 * self.s), int(8 * self.s)))
+        tk.Label(parent, text=text, bg=common.PANEL, fg="#B8BECA",
+                 font=self.f(10), anchor="w", justify="left",
+                 wraplength=self.panel_width()).pack(fill="x")
 
-    def _round_rect(self, x0, y0, x1, y1, r, **kw):
-        c = self.canvas
-        points = [x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r,
-                  x1, y1, x1 - r, y1, x0 + r, y1, x0, y1, x0, y1 - r,
-                  x0, y0 + r, x0, y0]
-        return c.create_polygon(points, smooth=True, **kw)
+    def row(self, parent, label, command, hint=""):
+        """One clickable line, highlighted under the mouse."""
+        s = self.s
+        frame = tk.Frame(parent, bg=common.PANEL, cursor="hand2")
+        frame.pack(fill="x", pady=(0, int(2 * s)))
+        text = tk.Label(frame, text=label, bg=common.PANEL, fg=common.TEXT,
+                        font=self.f(13), anchor="w", padx=int(10 * s),
+                        pady=int(8 * s))
+        text.pack(side="left", fill="x", expand=True)
+        key = tk.Label(frame, text=hint, bg=common.PANEL, fg=common.MUTED,
+                       font=self.f(11), padx=int(10 * s))
+        key.pack(side="right")
+        parts = (frame, text, key)
 
-    def _draw(self):
-        c, s = self.canvas, self.s
-        c.delete("all")
-        cx, cy = self.cx, self.cy
-        r = 200 * s
-        c.create_oval(cx - r, cy - r, cx + r, cy + r, fill=RING_BG,
-                      outline="#343944", width=max(1, int(s)))
-        self.item_hits = []
-        for i, (key, label, full, glyph, rows, _note) in enumerate(self.tools):
-            x, y, _a = self._item_xy(i)
-            rr = 42 * s
-            on = i == self.selected
-            fill = common.ACCENT if on else ITEM_BG
-            fg = "#FFFFFF" if on else "#D5D9E2"
-            c.create_oval(x - rr, y - rr, x + rr, y + rr, fill=fill,
-                          outline=common.ACCENT if on else ITEM_LINE,
-                          width=max(1, int(s)))
-            if self.icon_font:
-                c.create_text(x, y - 9 * s, text=glyph, fill=fg,
-                              font=(self.icon_font, -int(22 * s)))
-                c.create_text(x, y + 18 * s, text=label, fill=fg,
-                              font=self._f(11, True))
-            else:
-                c.create_text(x, y - 6 * s, text=str(i + 1), fill=fg,
-                              font=self._f(16, True))
-                c.create_text(x, y + 14 * s, text=label, fill=fg,
-                              font=self._f(11, True))
-            self.item_hits.append((x, y, rr))
-        hr = 64 * s
-        c.create_oval(cx - hr, cy - hr, cx + hr, cy + hr, fill=HUB_BG,
-                      outline=ITEM_LINE, width=max(1, int(s)))
-        full = self.tools[self.selected][2]
-        c.create_text(cx, cy - 10 * s, text=full, fill="#FFFFFF",
-                      font=self._f(14, True), width=110 * s, justify="center")
-        c.create_text(cx, cy + 20 * s, text="Ctrl + Alt + Space",
-                      fill=common.MUTED, font=self._f(10))
-        c.create_text(cx, cy + r + 22 * s,
-                      text="1–9 picks a tool · letters pick an action · Esc closes",
-                      fill="#C9CED8", font=self._f(11))
-        self._draw_panel()
+        def paint(on):
+            for p in parts:
+                p.configure(bg=common.ROW if on else common.PANEL)
 
-    def _draw_panel(self):
-        c, s = self.canvas, self.s
-        self.row_hits = []
-        key, _l, full, _g, rows, note = self.tools[self.selected]
-        if key == "cal":
-            left, top, w, h = self._panel_box()
-            self._round_rect(left, top, left + w, top + 92 * s, 14 * s,
-                             fill=common.PANEL, outline=ITEM_LINE)
-            c.create_text(left + 16 * s, top + 26 * s, anchor="w",
-                          text="Calendar", fill="#FFFFFF",
-                          font=self._f(13, True))
-            c.create_text(left + 16 * s, top + 58 * s, anchor="w",
-                          text="Click it, or press A, for the month view",
-                          fill=common.MUTED, font=self._f(10), width=w - 30 * s)
-            self.row_hits.append((left, top, left + w, top + 92 * s, 0))
+        for p in parts:
+            p.bind("<Enter>", lambda _e: paint(True))
+            p.bind("<Leave>", lambda _e: paint(False))
+            p.bind("<Button-1>", lambda _e: command())
+        return frame
+
+    def button(self, parent, text, command, primary=False):
+        b = common._button(parent, text, command, primary)
+        b.configure(font=self.f(11), padx=int(14 * self.s),
+                    pady=int(6 * self.s))
+        return b
+
+    def show_list(self):
+        self.clear_panel()
+        self.pinned = False
+        self.view = "list"
+        tool = self.tools[self.selected]
+        self.header(self.panel, tool["full"], "key %d" % (self.selected + 1))
+        for j, (label, _fn, _files, _kind) in enumerate(tool["rows"]):
+            self.row(self.panel, label, lambda j=j: self.run_action(j),
+                     chr(65 + j))
+        if tool.get("note"):
+            self.note(self.panel, tool["note"])
+        self.relayout()
+
+    def show_view(self, builder, pinned=True, name="custom"):
+        """Replace the panel's content with `builder(frame)`."""
+        self.clear_panel()
+        self.pinned = pinned
+        self.view = name
+        builder(self.panel)
+        self.relayout()
+
+    def attach(self, card):
+        """A Card asks for the panel (see card.py)."""
+        self.clear_panel()
+        self.pinned = True
+        self.view = "card"
+        self.card = card
+        return self.panel
+
+    def release(self, card):
+        if self.card is card:
+            self.card = None
+            if not self.closed:
+                self.show_list()
+
+    def back(self):
+        """Esc / ✕: leave what is open and show the tool's actions."""
+        if self.card is not None:
+            self.card.cancel()
             return
-        left, top, w, h = self._panel_box()
-        self._round_rect(left, top, left + w, top + h, 14 * s,
-                         fill=common.PANEL, outline=ITEM_LINE)
-        c.create_text(left + 18 * s, top + 26 * s, anchor="w", text=full,
-                      fill="#FFFFFF", font=self._f(13, True))
-        c.create_text(left + w - 16 * s, top + 26 * s, anchor="e",
-                      text="key %d" % (self.selected + 1), fill=common.MUTED,
-                      font=self._f(11))
-        y = top + 46 * s
-        for j, (label, _run, _files) in enumerate(rows):
-            x0, y0, x1, y1 = left + 8 * s, y, left + w - 8 * s, y + 40 * s
-            if j == self.hover_row:
-                self._round_rect(x0, y0, x1, y1, 8 * s, fill=common.ROW,
-                                 outline="")
-            c.create_text(x0 + 12 * s, (y0 + y1) / 2, anchor="w", text=label,
-                          fill=common.TEXT, font=self._f(13))
-            c.create_text(x1 - 12 * s, (y0 + y1) / 2, anchor="e",
-                          text=chr(65 + j), fill=common.MUTED,
-                          font=self._f(11))
-            self.row_hits.append((x0, y0, x1, y1, j))
-            y += 42 * s
-        if note:
-            c.create_line(left + 12 * s, y + 6 * s, left + w - 12 * s,
-                          y + 6 * s, fill=ITEM_LINE)
-            c.create_text(left + 18 * s, y + 18 * s, anchor="nw", text=note,
-                          fill="#B8BECA", font=self._f(11), width=w - 34 * s)
+        self.select(self.selected)
+
+    def select(self, i):
+        self.selected = i
+        self.heart_hover = False
+        self._engaged = False
+        self._away = 0
+        self._draw_ring()
+        tool = self.tools[i]
+        if tool.get("view"):
+            self.show_view(lambda f: tool["view"](self, f), pinned=False,
+                           name="hover")
+        else:
+            self.show_list()
 
     # -- input ---------------------------------------------------------------
 
@@ -237,63 +395,65 @@ class RadialMenu:
                 return i
         return None
 
-    def _hit_row(self, x, y):
-        for x0, y0, x1, y1, j in self.row_hits:
-            if x0 <= x <= x1 and y0 <= y <= y1:
-                return j
-        return None
+    def _on_heart(self, x, y):
+        h = getattr(self, "heart_hit", None)
+        return bool(h) and (x - h[0]) ** 2 + (y - h[1]) ** 2 <= h[2] ** 2
 
     def _motion(self, e):
-        i = self._hit_item(e.x, e.y)
-        if i is not None and i != self.selected:
-            self.selected, self.hover_row = i, None
-            self._draw()
+        heart = self._on_heart(e.x, e.y)
+        if heart != self.heart_hover and not self.hub_qr:
+            self.heart_hover = heart
+            self._draw_ring()
+            self.canvas.configure(cursor="hand2" if heart else "")
+        if self.pinned:
             return
-        j = self._hit_row(e.x, e.y)
-        if j != self.hover_row:
-            self.hover_row = j
-            self._draw()
+        i = self._hit_item(e.x, e.y)
+        if i is not None and (i != self.selected or self.view == "hidden"):
+            self.select(i)
 
     def _click(self, e):
+        if self._on_heart(e.x, e.y):
+            self.support()
+            return
         i = self._hit_item(e.x, e.y)
         if i is not None:
-            if i == self.selected and self.tools[i][0] == "cal":
-                self.run(0)
-                return
-            self.selected, self.hover_row = i, None
-            self._draw()
-            if self.tools[i][0] == "cal":
-                self.run(0)
+            self.select(i)
             return
-        j = self._hit_row(e.x, e.y)
-        if j is not None:
-            self.run(j)
-            return
-        cx, cy = self.cx, self.cy
-        if (e.x - cx) ** 2 + (e.y - cy) ** 2 > (200 * self.s) ** 2:
+        r = 200 * self.s
+        if (e.x - self.cx) ** 2 + (e.y - self.cy) ** 2 > r * r \
+                and not self.pinned:
             self.close()
 
+    def _typing(self):
+        try:
+            return isinstance(self.win.focus_get(), tk.Entry)
+        except (KeyError, tk.TclError):
+            return False
+
     def _key(self, e):
+        if self._typing() or self.pinned:
+            return
         ch = (e.char or "").lower()
         if ch and ch in "123456789":
-            self.selected, self.hover_row = int(ch) - 1, None
-            self._draw()
+            self.select(int(ch) - 1)
             return
-        if e.keysym in ("Return", "KP_Enter"):
-            self.run(self.hover_row or 0)
+        rows = self.tools[self.selected]["rows"]
+        if e.keysym in ("Return", "KP_Enter") and rows:
+            self.run_action(0)
             return
-        if ch and "a" <= ch <= "z":
-            j = ord(ch) - 97
-            rows = self.tools[self.selected][4]
-            if j < len(rows) or self.tools[self.selected][0] == "cal":
-                self.run(j)
+        if ch and "a" <= ch <= "z" and ord(ch) - 97 < len(rows):
+            self.run_action(ord(ch) - 97)
             return
         if e.keysym in ("Left", "Up"):
-            self.selected = (self.selected - 1) % len(self.tools)
-            self._draw()
+            self.select((self.selected - 1) % len(self.tools))
         elif e.keysym in ("Right", "Down", "Tab"):
-            self.selected = (self.selected + 1) % len(self.tools)
-            self._draw()
+            self.select((self.selected + 1) % len(self.tools))
+
+    def _escape(self, _e=None):
+        if self.view in ("list", "hover", "hidden"):
+            self.close()
+        else:
+            self.back()
 
     def _take_focus(self):
         try:
@@ -309,15 +469,15 @@ class RadialMenu:
             pass
 
     def _watch_front(self):
-        """Close once another window comes to the front: a click that
-        went through the see-through part of this one, Alt+Tab, anything.
-        Focus events alone miss some of these on a borderless window."""
+        """Close once another window comes to the front, unless the user is
+        in the middle of something in the panel (a file dialog, the QR
+        code, the camera…)."""
         if self.closed:
             return
         try:
             import ctypes
             front = ctypes.windll.user32.GetForegroundWindow()
-            if front and front != self.hwnd:
+            if front and front != self.hwnd and not self.pinned:
                 self.close()
                 return
         except Exception:
@@ -326,50 +486,88 @@ class RadialMenu:
 
     def _focus_out(self, _e=None):
         def check():
-            if self.closed:
+            if self.closed or self.pinned:
                 return
             try:
                 if self.win.focus_get() is None:
                     self.close()
             except (KeyError, tk.TclError):
                 self.close()
-        self.win.after(150, check)
+        self.win.after(200, check)
+
+    def _watch_pointer(self):
+        """A hover view (the calendar) stays while the mouse is on its tool
+        or in the panel, and goes once it has been away for a moment."""
+        if self.closed:
+            return
+        if self.view in ("hover", "hidden") and not self._typing():
+            px, py = self.win.winfo_pointerxy()
+            x, y = px - self.mon[0], py - self.mon[1]
+            inside = False
+            if self.view == "hover":
+                left, top, w, h = getattr(self, "panel_box", (0, 0, 0, 0))
+                inside = left <= x <= left + w and top <= y <= top + h
+            ix, iy, rr = self.item_hits[self.selected]
+            on_tool = (x - ix) ** 2 + (y - iy) ** 2 <= rr * rr
+            if inside or on_tool:
+                self._away = 0
+                self._engaged = True
+                if self.view == "hidden":
+                    self.canvas.itemconfigure(self.panel_item, state="normal")
+                    self.view = "hover"
+            else:
+                self._away += 1
+                if self._away >= 3 and self.view == "hover" \
+                        and self._engaged:
+                    self.canvas.itemconfigure(self.panel_item, state="hidden")
+                    self.view = "hidden"
+        self.win.after(150, self._watch_pointer)
 
     # -- doing it ------------------------------------------------------------
 
-    def run(self, j):
-        key, _l, full, _g, rows, _note = self.tools[self.selected]
-        ctrl = self.ctrl
-        if key == "cal":
-            left, top, _w, _h = self._panel_box()
-            near = (int(self.mon[0] + left), int(self.mon[1] + top))
-            self.close()
-            ctrl.root.after(60, lambda: self.calendar_cmd(ctrl, near=near))
-            return
-        label, action, uses_files = rows[j]
-        front = self.front
-        left, top, _w, _h = self._panel_box()
-        anchor = (int(self.mon[0] + left), int(self.mon[1] + top))
+    def support(self):
+        import webbrowser
+        url = self.support_url
         self.close()
+        if url:
+            webbrowser.open(url)
 
-        def go():
-            selection = []
-            if uses_files and front:
-                selection = common.explorer_selection(front)
-            common.log("%s > %s (%d selected)" % (full, label, len(selection)))
-            try:
-                action(ctrl, selection=selection, anchor=anchor)
-            except Exception as exc:      # noqa: BLE001 - shown to the user
-                import traceback
-                common.log(traceback.format_exc())
-                common.failed(ctrl, label, exc)
+    def run_action(self, j):
+        tool = self.tools[self.selected]
+        label, action, uses_files, kind = tool["rows"][j]
+        ctrl = self.ctrl
+        common.log("%s > %s" % (tool["full"], label))
+        if kind == "screen":
+            self.close()
+            ctrl.root.after(150, lambda: self._call(action, label, []))
+            return
+        # The panel stays up for this one, through any file dialog.
+        self.pinned = True
+        selection = []
+        if uses_files and self.front:
+            selection = common.explorer_selection(self.front)
+        before = self.view
+        self._call(action, label, selection)
+        if not self.closed and self.view == before and self.card is None:
+            self.show_list()             # nothing came of it (cancelled)
 
-        # Let the menu leave the screen before anything grabs it.
-        ctrl.root.after(120, go)
+    def _call(self, action, label, selection):
+        try:
+            action(self.ctrl, selection=selection, menu=self)
+        except Exception as exc:          # noqa: BLE001 - shown to the user
+            import traceback
+            common.log(traceback.format_exc())
+            common.failed(self.ctrl, label, exc)
+
+    def close_then(self, fn, delay=150):
+        """Close the ring (it must not be in a screenshot), then `fn()`."""
+        self.close()
+        self.ctrl.root.after(delay, fn)
 
     def close(self):
         if self.closed:
             return
+        self.clear_panel()
         self.closed = True
         RadialMenu.current = None
         try:

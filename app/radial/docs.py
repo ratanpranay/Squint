@@ -417,7 +417,7 @@ _PDF = {
 }
 
 
-def pdf_cmd(ctrl, action, selection=None, anchor=None, **_):
+def pdf_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
     if action == "to_pdf":
         files = common.pick_files(ctrl, "Files to put in one PDF",
                                   TO_PDF_TYPES, selection=selection)
@@ -430,7 +430,7 @@ def pdf_cmd(ctrl, action, selection=None, anchor=None, **_):
     if not files:
         return
     title, verb = _PDF[action]
-    card = Card(ctrl, title, anchor, _subtitle(files))
+    card = Card(ctrl, title, anchor, _subtitle(files), host=menu)
     first = files[0]
     base = os.path.splitext(os.path.basename(first))[0]
     pw = dict(PASSWORD)
@@ -477,7 +477,7 @@ def pdf_cmd(ctrl, action, selection=None, anchor=None, **_):
     card.form([pw], verb, start)
 
 
-def zip_cmd(ctrl, action, selection=None, anchor=None, **_):
+def zip_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
     if action == "extract":
         files = common.pick_files(ctrl, "Archive to extract",
                                   [("Archives", "*.zip *.7z *.tar *.gz *.tgz "
@@ -494,7 +494,7 @@ def zip_cmd(ctrl, action, selection=None, anchor=None, **_):
                 break
         folder = common.unique(os.path.join(common.squint_dir("zip"), name))
         locked = _needs_password(path)
-        card = Card(ctrl, "Extract", anchor, os.path.basename(path))
+        card = Card(ctrl, "Extract", anchor, os.path.basename(path), host=menu)
 
         def finish(result):
             return "Extracted", result
@@ -528,11 +528,11 @@ def zip_cmd(ctrl, action, selection=None, anchor=None, **_):
             else "Archive %s" % common.stamp()) + ".zip"
     out = common.into("zip", name)
     if action == "plain":
-        card = Card(ctrl, "Zip", anchor, _subtitle(files))
+        card = Card(ctrl, "Zip", anchor, _subtitle(files), host=menu)
         card.run(lambda p: zip_plain(files, out, p),
                  lambda r: ("Zipped " + _n(files), r), "Zipping…")
         return
-    card = Card(ctrl, "Zip with password", anchor, _subtitle(files))
+    card = Card(ctrl, "Zip with password", anchor, _subtitle(files), host=menu)
 
     def start(values):
         def work(p):
@@ -556,7 +556,7 @@ IMAGE_SIZES = (("0", "Same"), ("3840", "3840"), ("1920", "1920"),
                ("1280", "1280"), ("800", "800"))
 
 
-def convert_cmd(ctrl, action, selection=None, anchor=None, **_):
+def convert_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
     if action == "image":
         files = common.pick_files(
             ctrl, "Pictures to convert",
@@ -564,7 +564,7 @@ def convert_cmd(ctrl, action, selection=None, anchor=None, **_):
             selection=selection)
         if not files:
             return
-        card = Card(ctrl, "Convert pictures", anchor, _subtitle(files))
+        card = Card(ctrl, "Convert pictures", anchor, _subtitle(files), host=menu)
 
         def start(values):
             size = int(values["size"]) or None
@@ -586,7 +586,7 @@ def convert_cmd(ctrl, action, selection=None, anchor=None, **_):
             selection=selection)
         if not files:
             return
-        card = Card(ctrl, "Office to PDF", anchor, _subtitle(files))
+        card = Card(ctrl, "Office to PDF", anchor, _subtitle(files), host=menu)
 
         def work(p):
             out = []
@@ -604,7 +604,7 @@ def convert_cmd(ctrl, action, selection=None, anchor=None, **_):
             many=False, selection=selection)
         if not files:
             return
-        card = Card(ctrl, "Video to MP4", anchor, _subtitle(files))
+        card = Card(ctrl, "Video to MP4", anchor, _subtitle(files), host=menu)
 
         def work(p):
             ffmpeg = ensure_tool(p, "ffmpeg")
@@ -614,7 +614,7 @@ def convert_cmd(ctrl, action, selection=None, anchor=None, **_):
         card.run(work, lambda out: ("Converted to MP4", out), "Converting…")
 
 
-def extract_cmd(ctrl, action, selection=None, anchor=None, **_):
+def extract_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
     types = {"ppt": [("PowerPoint", "*.pptx *.ppsx *.potx")],
              "word": [("Word", "*.docx *.dotx")],
              "pdf": PDF_TYPES}[action]
@@ -622,7 +622,7 @@ def extract_cmd(ctrl, action, selection=None, anchor=None, **_):
                               selection=selection)
     if not files:
         return
-    card = Card(ctrl, "Extract media", anchor, _subtitle(files))
+    card = Card(ctrl, "Extract media", anchor, _subtitle(files), host=menu)
 
     def work(p):
         results = []

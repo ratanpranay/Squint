@@ -1,4 +1,4 @@
-Squint 1.51.0
+Squint 1.52.0
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,27 @@ was wrong, not only that it was.
 
 
 
+
+1.52.0
+
+  - menu.py rewritten around one panel (a Tk frame in a canvas window):
+    views are list, hover (calendar: hidden 450 ms after the mouse has
+    been on it and left), and pinned (cards, send, camera, city picker -
+    no hover switching, no close on focus loss, Esc/✕ goes back). Ring
+    drawings are tagged "ring" so redraws leave the panel alone.
+  - card.py: Card(host=menu) renders into the panel; its timer runs on the
+    root so work outlives the ring and is announced when done.
+  - send.py: _share_view puts the QR in the hub (menu.set_qr) and the
+    status, accept/decline and Open folder in the panel; the server stops
+    when the view goes. nearby_cmd lists devices in the panel.
+  - calendar_view.CalendarPanel; worldclock.py - zoneinfo when present,
+    else built-in US/EU/AU/NZ rules, checked equal to zoneinfo every hour
+    2025-2027 for all 41 cities.
+  - capture.selfie: OpenCV (installed with RapidOCR) DirectShow capture on
+    a thread, mirrored frames shown every 40 ms; falls back to the Windows
+    Camera app without OpenCV.
+  - ♥ in the hub, drawn as a polygon (font-independent).
+---
 
 1.51.0
 
