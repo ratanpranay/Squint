@@ -20,6 +20,19 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Mac: Squint closed when Selfie check opened the camera.** macOS ends an
+  app that touches the camera before its app package says why it needs it,
+  and an in-app update does not refresh the package. Selfie check now
+  checks first, and if the package is behind it offers "Restart Squint":
+  Squint closes, updates its app with the camera permission, and opens
+  again by itself. After that macOS asks once to allow the camera.
+
+---
+
 ## 1.55.1 — 2026-10-22
 
 ### Fixed

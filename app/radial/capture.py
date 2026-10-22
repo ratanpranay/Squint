@@ -269,6 +269,10 @@ def selfie(ctrl, menu=None, **_):
         import cv2                         # comes with Squint's OCR engine
     except Exception:
         cv2 = None
+    if common.IS_MAC and menu is not None and _mac_needs_refresh():
+        # Opening the camera now would make macOS stop Squint outright.
+        _offer_mac_refresh(ctrl, menu)
+        return
     if cv2 is None and common.IS_MAC and menu is not None:
         _offer_camera_support(ctrl, menu)
         return
@@ -390,6 +394,76 @@ def selfie(ctrl, menu=None, **_):
         show()
 
     menu.show_view(build, pinned=True, name="selfie")
+
+
+def _mac_needs_refresh():
+    """True when Squint runs as an app whose Info.plist has no camera
+    description. macOS does not ask in that case: it ends the app the
+    moment the camera is touched. (Run from Terminal, the question goes to
+    Terminal, which has one, so nothing is needed.)"""
+    try:
+        from AppKit import NSBundle
+        bundle = NSBundle.mainBundle()
+        if not str(bundle.bundlePath() or "").endswith(".app"):
+            return False
+        return bundle.objectForInfoDictionaryKey_(
+            "NSCameraUsageDescription") is None
+    except Exception:
+        return True                      # cannot tell: do not risk it
+
+
+_REFRESH = """
+import os, subprocess, sys, time
+pid, root = int(sys.argv[1]), sys.argv[2]
+for _ in range(600):
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        break
+    time.sleep(0.3)
+sys.path.insert(0, root)
+from app import mac_bundle
+apps = mac_bundle.bundles()
+for app in apps:
+    try:
+        mac_bundle.rebuild(app)
+    except Exception as exc:
+        mac_bundle.log("bundle     : refresh for camera failed - %s" % exc)
+if apps:
+    subprocess.Popen(["open", apps[0]])
+"""
+
+
+def _offer_mac_refresh(ctrl, menu):
+    """Squint's app has to be rebuilt once, from outside, with the camera
+    description in it - then macOS asks for the camera instead of ending
+    the app. Done for the user: quit, rebuild, reopen."""
+    import subprocess
+    import sys
+    import tempfile
+    from .card import Card
+    from .. import config
+    card = Card(ctrl, "Selfie check", None,
+                "macOS needs Squint to restart once before it can use the "
+                "camera.", host=menu)
+
+    def restart(_values):
+        script = os.path.join(tempfile.gettempdir(), "squint-refresh.py")
+        with open(script, "w", encoding="utf-8") as fh:
+            fh.write(_REFRESH)
+        subprocess.Popen([sys.executable, script, str(os.getpid()),
+                          os.path.abspath(config.app_dir())],
+                         start_new_session=True, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+        common.log("selfie: refreshing the app bundle for the camera")
+        menu.close()
+        ctrl.root.after(200, ctrl.quit)
+
+    card.form([{"kind": "note", "text": "Squint will close, update its app "
+                "with the camera permission, and open again by itself "
+                "(about 10 seconds). Then choose Selfie check again; macOS "
+                "will ask once to allow the camera."}],
+              "Restart Squint", restart)
 
 
 def _offer_camera_support(ctrl, menu):
