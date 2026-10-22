@@ -20,6 +20,18 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Mac: the file window for choosing files was stuck in a corner** and
+  could not be moved. Squint now uses the Mac's own file window, centred
+  and movable, and hides the ring while it is open.
+- **Mac: panel notes said "Explorer"**; they say Finder now, with Mac-style
+  folder paths.
+
+---
+
 ## 1.55.3 — 2026-10-22
 
 ### Fixed

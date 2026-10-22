@@ -30,6 +30,17 @@ def _squint(name):
 
 
 def _tools():
+    tools = _tool_list()
+    if sys.platform == "darwin":
+        # Same words a Mac uses.
+        for t in tools:
+            t["note"] = t["note"].replace("Explorer", "Finder").replace(
+                "Downloads\\Squint\\", "Downloads/Squint/").replace(
+                "Downloads\\Squint", "Downloads/Squint")
+    return tools
+
+
+def _tool_list():
     from . import calendar_view, capture, docs, record, send
 
     def pdf(action):

@@ -713,6 +713,54 @@ def explorer_selection(hwnd):
         return []
 
 
+def _mac_choose_files(title, exts, many):
+    """macOS's own file window, centred and movable.
+
+    Tk's dialog on a Mac is a sheet glued to its parent window; with the
+    hidden parent this needs, it appeared stuck in a corner and could not
+    be moved. AppleScript's `choose file` is the ordinary open window."""
+    prompt = title.replace("\\", "\\\\").replace('"', '\\"')
+    kinds = ""
+    if exts:
+        kinds = " of type {%s}" % ", ".join(
+            '"%s"' % e.lstrip(".") for e in exts)
+    script = ('activate\n'
+              'set picked to choose file with prompt "%s"%s%s\n'
+              'set out to ""\n'
+              'if class of picked is list then\n'
+              'repeat with f in picked\n'
+              'set out to out & POSIX path of f & linefeed\n'
+              'end repeat\n'
+              'else\n'
+              'set out to POSIX path of picked\n'
+              'end if\n'
+              'return out' % (prompt, kinds,
+                              " with multiple selections allowed"
+                              if many else ""))
+    menu = None
+    try:
+        from .menu import RadialMenu
+        menu = RadialMenu.current
+        if menu is not None:
+            menu.win.withdraw()            # nothing may sit over the window
+    except Exception:
+        menu = None
+    try:
+        done = run(["osascript", "-e", script], timeout=3600)
+    finally:
+        if menu is not None and not menu.closed:
+            try:
+                menu.win.deiconify()
+                menu.win.lift()
+            except Exception:
+                pass
+    if done.returncode != 0:
+        return []                          # cancelled
+    paths = [p.strip() for p in
+             done.stdout.decode("utf-8", "replace").splitlines()]
+    return [p.rstrip("/") or p for p in paths if p]
+
+
 def pick_files(ctrl, title, types, many=True, selection=None):
     """Explorer's selection when it fits `types`, otherwise a file dialog."""
     exts = tuple(e.lower() for _label, pattern in types
@@ -723,6 +771,8 @@ def pick_files(ctrl, title, types, many=True, selection=None):
                 if not exts or p.lower().endswith(exts)]
         if fits:
             return fits if many else fits[:1]
+    if IS_MAC:
+        return _mac_choose_files(title, exts, many)
     from tkinter import filedialog
     parent = tk.Toplevel(ctrl.root)
     parent.withdraw()
