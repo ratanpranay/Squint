@@ -66,7 +66,8 @@ jobs:
             echo "::error title=installer::$msg"
             exit 1
           fi
-          cp dist-installer/Squint-Setup-*.exe dist-installer/Squint-Setup.exe
+          # One name for every version, so the share link never changes.
+          mv dist-installer/Squint-Setup-*.exe dist-installer/Squint-Setup.exe
 
       - name: Publish
         if: steps.v.outputs.skip != '1'
@@ -79,5 +80,4 @@ jobs:
             --notes-file dist/RELEASE_NOTES.md \
             --latest \
             dist/Squint.zip dist/version.json \
-            dist-installer/Squint-Setup.exe \
-            "dist-installer/Squint-Setup-$VERSION.exe"
+            dist-installer/Squint-Setup.exe
