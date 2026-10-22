@@ -20,6 +20,20 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Support line on a white background**, readable over anything behind
+  the ring.
+
+### Fixed
+
+- **The ring could not be closed by clicking outside it while the support
+  code was showing.**
+
+---
+
 ## 1.54.0 — 2026-10-22
 
 ### Changed

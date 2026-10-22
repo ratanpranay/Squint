@@ -176,11 +176,17 @@ class RadialMenu:
             self._draw_hub()
         if self.view == "support":
             hint = "Click the code to go back · Esc closes"
-            c.create_text(cx, cy - r - 24 * s,
-                          text="♥  Support Squint if it saves you time  ·  "
-                               "Open PayPal",
-                          fill="#FFFFFF", font=self.f(13, True),
-                          tags=("ring", "support_line"))
+            line = c.create_text(cx, cy - r - 26 * s,
+                                 text="♥  Support Squint if it saves you "
+                                      "time  ·  Open PayPal",
+                                 fill="#141413", font=self.f(13, True),
+                                 tags=("ring", "support_line"))
+            # A white pill behind it, so it reads on any background.
+            x0, y0, x1, y1 = c.bbox(line)
+            pad_x, pad_y, rad = 14 * s, 6 * s, 14 * s
+            self._pill(x0 - pad_x, y0 - pad_y, x1 + pad_x, y1 + pad_y, rad,
+                       fill="#FFFFFF", tags=("ring", "support_line"))
+            c.tag_raise(line)
             c.tag_bind("support_line", "<Button-1>",
                        lambda _e: self._open_support())
             c.tag_bind("support_line", "<Enter>",
@@ -214,6 +220,13 @@ class RadialMenu:
                       tags="ring")
         c.create_text(cx, cy + 30 * s, text=self.shortcut,
                       fill=common.MUTED, font=self.f(10), tags="ring")
+
+    def _pill(self, x0, y0, x1, y1, r, **kw):
+        r = min(r, (y1 - y0) / 2.0)
+        pts = [x0 + r, y0, x1 - r, y0, x1, y0, x1, y0 + r, x1, y1 - r,
+               x1, y1, x1 - r, y1, x0 + r, y1, x0, y1, x0, y1 - r,
+               x0, y0 + r, x0, y0]
+        return self.canvas.create_polygon(pts, smooth=True, outline="", **kw)
 
     def _heart(self, x, y, size, colour):
         """A heart drawn as a shape, so it looks the same on every PC."""
@@ -443,7 +456,7 @@ class RadialMenu:
             self.heart_hover = heart
             self._draw_ring()
             self.canvas.configure(cursor="hand2" if heart else "")
-        if self.pinned:
+        if self.pinned or self.view == "support":
             return
         i = self._hit_item(e.x, e.y)
         if i is not None and (i != self.selected or self.view == "hidden"):
@@ -577,7 +590,9 @@ class RadialMenu:
         it. Clicking the code brings the heart back."""
         self.clear_panel()
         self.selected = None
-        self.pinned = True
+        # Not pinned: clicking anywhere outside the ring closes it, as
+        # usual. Hover over a tool does not switch away (see _motion).
+        self.pinned = False
         self.view = "support"
         self.canvas.itemconfigure(self.panel_item, state="hidden")
         self.set_qr(self.support_url)
