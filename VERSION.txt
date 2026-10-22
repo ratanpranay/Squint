@@ -1,4 +1,4 @@
-Squint 1.54.0
+Squint 1.54.1
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,17 @@ was wrong, not only that it was.
 
 
 
+
+1.54.1
+
+  - Support line drawn on a white pill (polygon behind the text item).
+  - Support view no longer pinned, so focus loss / an outside click closes
+    the ring; hover still does not switch away from it.
+  - qr.round_shapes / draw_round: dots (0.46 of a module) and rounded
+    finder patterns on a white disc of radius 104 px, the code inscribed
+    with a two-module margin. zbar decodes the user's PayPal URL and a
+    transfer URL straight off the screen.
+---
 
 1.54.0
 
