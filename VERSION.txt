@@ -1,4 +1,4 @@
-Squint 1.52.0
+Squint 1.53.0
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,22 @@ was wrong, not only that it was.
 
 
 
+
+1.53.0
+
+  - hotkey_radial default alt+space; a saved ctrl+alt+space (1.50-1.52
+    default) is moved unless hotkey_radial_chosen. If registering fails
+    (1409: PowerToys Run), rebind to ctrl+alt+space. ctrl.radial_hotkey
+    is shown in the hub.
+  - ♥ now shows the user's PayPal p2p QR (decoded from the image he sent)
+    in the hub, with Open PayPal in the panel.
+  - send: nickname in radial.json (common.setting); device_name() uses it
+    for discovery replies, offers and the phone page. Windows Firewall:
+    firewall_ok() asks netsh for the "Squint" rule; allow_firewall() runs
+    one elevated PowerShell that removes inbound Block rules for this
+    Python (left by a dismissed Allow-access prompt - block wins over
+    allow) and adds an Allow rule for pythonw/python, any profile.
+---
 
 1.52.0
 

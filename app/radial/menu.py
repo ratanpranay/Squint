@@ -35,12 +35,14 @@ HEART = "#F0506E"
 class RadialMenu:
     current = None
 
-    def __init__(self, ctrl, tools, front=None, support_url=""):
+    def __init__(self, ctrl, tools, front=None, support_url="",
+                 shortcut="Alt + Space"):
         RadialMenu.current = self
         self.ctrl = ctrl
         self.tools = tools
         self.front = front
         self.support_url = support_url
+        self.shortcut = shortcut
         self.selected = 0
         self.closed = False
         self.pinned = False
@@ -191,7 +193,7 @@ class RadialMenu:
         c.create_text(cx, cy + 2 * s, text=title, fill="#FFFFFF",
                       font=self.f(14, True), width=110 * s, justify="center",
                       tags="ring")
-        c.create_text(cx, cy + 30 * s, text="Ctrl + Alt + Space",
+        c.create_text(cx, cy + 30 * s, text=self.shortcut,
                       fill=common.MUTED, font=self.f(10), tags="ring")
 
     def _heart(self, x, y, size, colour):
@@ -338,6 +340,8 @@ class RadialMenu:
         self.view = "list"
         tool = self.tools[self.selected]
         self.header(self.panel, tool["full"], "key %d" % (self.selected + 1))
+        if tool.get("top"):
+            tool["top"](self, self.panel)
         for j, (label, _fn, _files, _kind) in enumerate(tool["rows"]):
             self.row(self.panel, label, lambda j=j: self.run_action(j),
                      chr(65 + j))
@@ -526,11 +530,37 @@ class RadialMenu:
     # -- doing it ------------------------------------------------------------
 
     def support(self):
-        import webbrowser
+        """♥: the PayPal code in the middle of the ring, to scan with a
+        phone, and a button to open it on this computer."""
         url = self.support_url
-        self.close()
-        if url:
+
+        def open_page():
+            import webbrowser
+            self.close()
             webbrowser.open(url)
+
+        def build(frame):
+            s = self.s
+            self.set_qr(url)
+            self.header(frame, "Support Squint  ♥", close=True)
+            tk.Label(frame, text="Squint is free. If it saves you time, a "
+                     "small tip keeps it going.", bg=common.PANEL,
+                     fg=common.TEXT, font=self.f(11), anchor="w",
+                     justify="left", wraplength=self.panel_width()).pack(
+                fill="x")
+            tk.Label(frame, text="Scan the code in the circle with your "
+                     "phone's camera to pay with PayPal, or open PayPal "
+                     "here.", bg=common.PANEL, fg=common.MUTED,
+                     font=self.f(10), anchor="w", justify="left",
+                     wraplength=self.panel_width()).pack(
+                fill="x", pady=(int(6 * s), 0))
+            row = tk.Frame(frame, bg=common.PANEL)
+            row.pack(fill="x", pady=(int(12 * s), 0))
+            self.button(row, "Close", self.back).pack(side="right")
+            self.button(row, "Open PayPal", open_page, primary=True).pack(
+                side="right", padx=(0, int(6 * s)))
+
+        self.show_view(build, pinned=True, name="support")
 
     def run_action(self, j):
         tool = self.tools[self.selected]

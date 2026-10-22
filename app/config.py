@@ -19,7 +19,7 @@ DEFAULTS = {
     # Hold to see the whole screen translated in place (app/xray.py).
     "hotkey_xray": platform_util.default_xray_hotkey(),
     # The radial menu of everyday tools (app/radial). Windows for now.
-    "hotkey_radial": "ctrl+alt+space",
+    "hotkey_radial": "alt+space",
     "radial_enabled": True,
     # Which machinery delivers the global shortcut on macOS: "auto" tries
     # the system registration and falls back to watching the keyboard;

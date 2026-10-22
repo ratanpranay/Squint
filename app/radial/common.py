@@ -88,6 +88,36 @@ def where(path):
     return "\\".join(["Downloads"] + parts[:2])
 
 
+def _settings_path():
+    return os.path.join(config.data_dir(), "radial.json")
+
+
+def setting(key, default=None):
+    """The toolkit's own small settings (nickname and the like)."""
+    try:
+        import json
+        with open(_settings_path(), encoding="utf-8") as fh:
+            return json.load(fh).get(key, default)
+    except (OSError, ValueError, AttributeError):
+        return default
+
+
+def set_setting(key, value):
+    import json
+    try:
+        with open(_settings_path(), encoding="utf-8") as fh:
+            data = json.load(fh)
+        if not isinstance(data, dict):
+            data = {}
+    except (OSError, ValueError):
+        data = {}
+    data[key] = value
+    tmp = _settings_path() + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False)
+    os.replace(tmp, _settings_path())
+
+
 def tools_dir():
     path = os.path.join(config.data_dir(), "tools")
     os.makedirs(path, exist_ok=True)

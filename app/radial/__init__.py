@@ -15,8 +15,7 @@ from . import common
 IS_WINDOWS = sys.platform == "win32"
 
 # The ♥ in the middle of the ring.
-SUPPORT_URL = ("https://www.paypal.com/donate/?business=pranayratan%40gmail.com"
-               "&item_name=Support+Squint&currency_code=EUR")
+SUPPORT_URL = "https://www.paypal.com/qrcodes/p2pqrc/VCMMGZLN8W22C"
 
 SCREEN, PANEL = "screen", "panel"
 
@@ -88,7 +87,7 @@ def _tools():
               ("Receive", send.receive_cmd, False, PANEL),
               ("Phone via QR", send.phone_cmd, True, PANEL)],
              "Same Wi-Fi only. Received files: "
-             "Downloads\\Squint\\Received."),
+             "Downloads\\Squint\\Received.", top=send.name_row),
         tool("cal", "Calendar", "Calendar", "", [],
              view=calendar_view.build, wide=True),
         tool("conv", "Convert", "Convert files", "",
@@ -138,4 +137,6 @@ def open_menu(ctrl):
         front = platform_util.front_handle()
     except Exception:
         pass
-    RadialMenu(ctrl, _tools(), front, SUPPORT_URL)
+    spec = getattr(ctrl, "radial_hotkey", None) or "alt+space"
+    shortcut = " + ".join(p.capitalize() for p in spec.split("+"))
+    RadialMenu(ctrl, _tools(), front, SUPPORT_URL, shortcut)

@@ -753,11 +753,18 @@ class Controller:
         # The radial menu of everyday tools (app/radial): one more
         # shortcut beside Squint's own, which stay exactly as they were.
         self.hk_radial_id = None
+        self.radial_hotkey = None
         if sys.platform == "win32" and CFG.get("radial_enabled", True):
+            spec = CFG.get("hotkey_radial") or "alt+space"
+            # 1.50-1.52 shipped Ctrl+Alt+Space; the quicker Alt+Space is
+            # the default now, unless someone chose another on purpose.
+            if spec == "ctrl+alt+space" and \
+                    not CFG.get("hotkey_radial_chosen", False):
+                spec = "alt+space"
             try:
                 self.hk_radial_id = self.hotkeys.register(
-                    CFG.get("hotkey_radial") or "ctrl+alt+space",
-                    lambda: self._pressed("radial"))
+                    spec, lambda: self._pressed("radial"))
+                self.radial_hotkey = spec
             except Exception:
                 log("radial     : shortcut not registered:\n%s"
                     % traceback.format_exc())
@@ -768,7 +775,17 @@ class Controller:
         problems = [p for p in problems if p]
         if self.hk_radial_id is not None:
             radial_problem = self.hotkeys.error_for(self.hk_radial_id)
-            log("radial     : %s %s" % (CFG.get("hotkey_radial"),
+            if radial_problem and self.radial_hotkey != "ctrl+alt+space":
+                # Taken by another app (PowerToys Run uses Alt+Space):
+                # fall back to the longer one rather than have none.
+                log("radial     : %s taken (%s), using ctrl+alt+space"
+                    % (self.radial_hotkey, radial_problem))
+                new_id, err = self.hotkeys.rebind(self.hk_radial_id,
+                                                  "ctrl+alt+space")
+                self.hk_radial_id = new_id
+                self.radial_hotkey = "ctrl+alt+space"
+                radial_problem = err
+            log("radial     : %s %s" % (self.radial_hotkey,
                                         radial_problem or "ready"))
             if radial_problem:
                 problems.append(radial_problem)

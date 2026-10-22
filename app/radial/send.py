@@ -44,8 +44,146 @@ def lan_ip():
         s.close()
 
 
-def device_name():
+def computer_name():
     return os.environ.get("COMPUTERNAME") or socket.gethostname()
+
+
+def device_name():
+    """What other people see: the nickname, or the computer's name."""
+    return (common.setting("nickname") or "").strip() or computer_name()
+
+
+# -- Windows Firewall ----------------------------------------------------
+#
+# Other devices have to reach this computer. Windows asks "Allow access?"
+# the first time - a prompt that easily ends up behind the ring, and that,
+# dismissed, leaves a rule that blocks Squint for good. One elevated step
+# replaces whatever is there with a rule that lets Squint in.
+
+RULE = "Squint"
+
+
+def firewall_ok():
+    if not common.IS_WINDOWS:
+        return True
+    try:
+        done = common.run(["netsh", "advfirewall", "firewall", "show", "rule",
+                           "name=" + RULE], timeout=8)
+        return done.returncode == 0
+    except Exception:
+        return True                  # cannot tell; do not nag
+
+
+def allow_firewall():
+    """Ask Windows (one UAC prompt) to let Squint accept connections."""
+    import base64
+    import sys
+    folder = os.path.dirname(sys.executable)
+    programs = [os.path.join(folder, n) for n in ("pythonw.exe", "python.exe")
+                if os.path.isfile(os.path.join(folder, n))] or [sys.executable]
+    lines = ["$ErrorActionPreference='SilentlyContinue'"]
+    for prog in programs:
+        q = prog.replace("'", "''")
+        lines.append(
+            "Get-NetFirewallApplicationFilter -Program '%s' | "
+            "Get-NetFirewallRule | Where-Object { $_.Direction -eq 'Inbound' "
+            "-and $_.Action -eq 'Block' } | Remove-NetFirewallRule" % q)
+    lines.append("Remove-NetFirewallRule -DisplayName '%s'" % RULE)
+    for prog in programs:
+        q = prog.replace("'", "''")
+        lines.append("New-NetFirewallRule -DisplayName '%s' -Direction "
+                     "Inbound -Program '%s' -Action Allow -Profile Any "
+                     "| Out-Null" % (RULE, q))
+    script = ";".join(lines)
+    encoded = base64.b64encode(script.encode("utf-16-le")).decode()
+    common.run(["powershell", "-NoProfile", "-Command",
+                "Start-Process powershell -Verb RunAs -Wait -WindowStyle "
+                "Hidden -ArgumentList '-NoProfile','-EncodedCommand','%s'"
+                % encoded], timeout=180)
+    return firewall_ok()
+
+
+def firewall_row(ctrl, menu, frame):
+    """A warning with an Allow button, only when the rule is missing."""
+    if firewall_ok():
+        return
+    s = menu.s
+    box = tk.Frame(frame, bg="#3A3320")
+    box.pack(fill="x", pady=(0, int(8 * s)))
+    text = tk.Label(box, text="Windows may stop other devices reaching this "
+                    "PC. Allow it once (Windows asks to confirm).",
+                    bg="#3A3320", fg="#F5D58A", font=menu.f(10),
+                    justify="left", anchor="w",
+                    wraplength=menu.panel_width() - int(90 * s),
+                    padx=int(8 * s), pady=int(6 * s))
+    text.pack(side="left", fill="x", expand=True)
+
+    def allow():
+        button.configure(text="…", state="disabled")
+
+        def done(ok):
+            try:
+                if ok:
+                    box.destroy()
+                    menu.relayout()
+                else:
+                    text.configure(text="Not allowed yet. If Windows asked, "
+                                   "choose Yes; on a work PC the IT "
+                                   "department may need to do it.")
+                    button.configure(text="Try again", state="normal")
+            except tk.TclError:
+                pass
+
+        common.in_background(ctrl, allow_firewall, done, "Allowing Squint")
+
+    button = menu.button(box, "Allow", allow, primary=True)
+    button.configure(padx=int(10 * s), pady=int(4 * s))
+    button.pack(side="right", padx=int(6 * s))
+
+
+def name_row(menu, frame):
+    """Above the Send actions: the name others see, and Change."""
+    s = menu.s
+    row = tk.Frame(frame, bg=common.PANEL)
+    row.pack(fill="x", pady=(0, int(6 * s)))
+
+    def show():
+        for child in row.winfo_children():
+            child.destroy()
+        tk.Label(row, text="You appear as", bg=common.PANEL, fg=common.MUTED,
+                 font=menu.f(10)).pack(side="left")
+        tk.Label(row, text=device_name(), bg=common.PANEL, fg="#FFFFFF",
+                 font=menu.f(11, True)).pack(side="left", padx=int(6 * s))
+        change = tk.Label(row, text="Change", bg=common.PANEL,
+                          fg="#8FB4FF", font=menu.f(10), cursor="hand2")
+        change.pack(side="right")
+        change.bind("<Button-1>", lambda _e: edit())
+        menu.relayout()
+
+    def edit():
+        for child in row.winfo_children():
+            child.destroy()
+        var = tk.StringVar(value=device_name())
+        entry = tk.Entry(row, textvariable=var, bg=common.ROW, fg=common.TEXT,
+                         relief="flat", highlightthickness=0,
+                         insertbackground=common.TEXT, font=menu.f(11))
+        entry.pack(side="left", fill="x", expand=True, ipady=int(4 * s))
+
+        def save(_e=None):
+            name = var.get().strip()[:40]
+            common.set_setting("nickname", name)
+            show()
+
+        entry.bind("<Return>", save)
+        entry.bind("<Escape>", lambda _e: (show(), "break")[1])
+        b = menu.button(row, "Save", save, primary=True)
+        b.configure(padx=int(10 * s), pady=int(3 * s))
+        b.pack(side="left", padx=(int(4 * s), 0))
+        entry.focus_set()
+        entry.select_range(0, "end")
+        menu.relayout()
+
+    show()
 
 
 def _safe_name(name):
@@ -378,6 +516,7 @@ def _share_view(ctrl, menu, title, intro, shared=()):
         menu.on_clear(stop)
         menu.set_qr(server.url)
         menu.header(frame, title, close=True)
+        firewall_row(ctrl, menu, frame)
         tk.Label(frame, text=intro, bg=common.PANEL, fg=common.MUTED,
                  font=menu.f(10), justify="left", anchor="w",
                  wraplength=menu.panel_width()).pack(fill="x")
@@ -388,8 +527,10 @@ def _share_view(ctrl, menu, title, intro, shared=()):
         status.pack(fill="x", pady=(int(10 * s), 0))
         ask_area = tk.Frame(frame, bg=common.PANEL)
         ask_area.pack(fill="x")
-        menu.note(frame, "Other computers see this one as “%s”. Files go to "
-                  "Downloads\\Squint\\Received." % device_name())
+        menu.note(frame, "Others see you as “%s”. Files go to "
+                  "Downloads\\Squint\\Received.\nNot connecting? Both "
+                  "must be on the same Wi-Fi; guest and office Wi-Fi often "
+                  "block devices talking to each other." % device_name())
         row = tk.Frame(frame, bg=common.PANEL)
         row.pack(fill="x", pady=(int(10 * s), 0))
         menu.button(row, "Done", menu.back, primary=True).pack(side="right")

@@ -20,6 +20,33 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## 1.53.0 — 2026-10-22
+
+### Changed
+
+- **Alt + Space opens the tools menu.** Quicker than Ctrl + Alt + Space.
+  If another program already uses Alt + Space (PowerToys Run does), Squint
+  falls back to Ctrl + Alt + Space by itself. The middle of the ring shows
+  which one is active.
+- **♥ shows the PayPal code in the ring.** Scan it with a phone to support
+  Squint, or press Open PayPal.
+
+### Added
+
+- **Your name for sending.** Send shows the name others see (the computer's
+  name to start with); click Change to set your own. It is what appears on
+  other computers and on the phone page.
+
+### Fixed
+
+- **Phones and other computers could not connect.** Windows Firewall
+  blocked them, and its "Allow access?" question could end up hidden behind
+  the ring. Receive and Phone via QR now notice this and offer a one-time
+  Allow button (Windows asks to confirm). They also say what to check when
+  the phone and computer are on different or guest Wi-Fi.
+
+---
+
 ## 1.52.0 — 2026-10-22
 
 ### Changed
