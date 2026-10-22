@@ -22,6 +22,13 @@ def pick_region(ctrl):
     if image is None:
         return None, None
     scale = getattr(picker, "scale_used", 1.0) or 1.0
+    if common.IS_MAC:
+        # A Mac grabs (and places windows) in points; the picture is in
+        # pixels, twice as many on a Retina screen.
+        return image, (int(round(picker.origin[0])),
+                       int(round(picker.origin[1])),
+                       int(round(image.width / scale)),
+                       int(round(image.height / scale)))
     left = int(round(picker.origin[0] * scale))
     top = int(round(picker.origin[1] * scale))
     return image, (left, top, image.width, image.height)
@@ -359,12 +366,14 @@ def selfie(ctrl, menu=None, **_):
 
 
 def _camera_app(ctrl, menu):
-    """Without OpenCV: Windows' own Camera app."""
+    """Without OpenCV: the system's own camera app."""
     if menu is not None:
         menu.close()
     try:
         if common.IS_WINDOWS:
             os.startfile("microsoft.windows.camera:")   # noqa: F821
+        elif common.IS_MAC:
+            common.run(["open", "-a", "Photo Booth"], timeout=10)
         else:
             common.tell(ctrl, "Selfie check needs the camera app.")
     except Exception as exc:               # noqa: BLE001

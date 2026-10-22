@@ -1,4 +1,4 @@
-Squint 1.54.1
+Squint 1.55.0
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,22 @@ was wrong, not only that it was.
 
 
 
+
+1.55.0
+
+  - Radial menu on macOS: hotkey registered on darwin too (Carbon,
+    alt+space = Option+Space, same fallback). Ring window transparent with
+    systemTransparent on Tk 8.6, dimmed on Tk 9; monitor geometry from
+    NSScreen in points; NSApp activated on open; Escape and "another app
+    came to the front" watched by polling (borderless windows on a Mac do
+    not get key events reliably).
+  - capture: region box in points on a Mac (mss grabs in points, returns
+    pixels). StopBar keys via platform_util.key_is_down.
+  - Finder selection through osascript; image clipboard through osascript
+    «class PNGf»; nickname default from scutil ComputerName; selfie falls
+    back to Photo Booth; 7-Zip's 7zz from 7z<ver>-mac.tar.xz; Video to MP4
+    through avconvert when there is no FFmpeg.
+---
 
 1.54.1
 

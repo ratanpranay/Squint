@@ -45,6 +45,14 @@ def lan_ip():
 
 
 def computer_name():
+    if common.IS_MAC:
+        try:
+            done = common.run(["scutil", "--get", "ComputerName"], timeout=3)
+            name = done.stdout.decode("utf-8", "replace").strip()
+            if name:
+                return name
+        except Exception:
+            pass
     return os.environ.get("COMPUTERNAME") or socket.gethostname()
 
 

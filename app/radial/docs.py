@@ -556,6 +556,22 @@ IMAGE_SIZES = (("0", "Same"), ("3840", "3840"), ("1920", "1920"),
                ("1280", "1280"), ("800", "800"))
 
 
+def video_to_mp4_mac(src):
+    """macOS's own converter (avconvert), so nothing has to be fetched."""
+    if not shutil.which("avconvert"):
+        raise RuntimeError("this Mac has no video converter (avconvert); "
+                           "install FFmpeg to convert videos")
+    base = os.path.splitext(os.path.basename(src))[0]
+    out = common.into("conv", base + ".mp4")
+    done = common.run(["avconvert", "--source", src, "--output", out,
+                       "--preset", "PresetHighestQuality", "--replace"],
+                      timeout=6 * 3600)
+    if done.returncode != 0 or not os.path.isfile(out):
+        raise RuntimeError((done.stderr or done.stdout).decode(
+            "utf-8", "replace")[-300:])
+    return out
+
+
 def convert_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
     if action == "image":
         files = common.pick_files(
@@ -607,6 +623,9 @@ def convert_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
         card = Card(ctrl, "Video to MP4", anchor, _subtitle(files), host=menu)
 
         def work(p):
+            if common.IS_MAC and not common.ffmpeg_path():
+                p(None, "Converting the video")
+                return video_to_mp4_mac(files[0])
             ffmpeg = ensure_tool(p, "ffmpeg")
             p(None, "Converting the video")
             return video_to_mp4(ffmpeg, files[0])

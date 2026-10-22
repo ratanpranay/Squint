@@ -16,7 +16,8 @@ def video(ctrl, menu=None, **_):
     """Region video. The video tools are fetched in the panel the first
     time; then the ring closes and the region is picked."""
     if not common.IS_WINDOWS:
-        common.tell(ctrl, "Video recording is Windows-only for now.")
+        common.tell(ctrl, "Video recording is on Windows for now. On a Mac, "
+                    "Region GIF works, and Shift+Command+5 records video.")
         return
 
     def record_now(ffmpeg):

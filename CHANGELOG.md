@@ -20,6 +20,20 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## 1.55.0 — 2026-10-22
+
+### Added
+
+- **The tools menu on Mac.** Option + Space opens the same ring as on
+  Windows (Control + Option + Space if another app such as Alfred already
+  uses it). Screenshots, scrolling capture, GIFs, translate, PDF, zip,
+  Transfers, calendar and world clock, convert and extract all work.
+  Files selected in Finder are used the way Explorer's are on Windows.
+  Selfie check opens Photo Booth. Region video stays Windows-only for now;
+  on a Mac, Shift + Command + 5 records the screen.
+
+---
+
 ## 1.54.1 — 2026-10-22
 
 ### Changed

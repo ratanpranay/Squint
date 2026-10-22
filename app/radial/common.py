@@ -15,6 +15,7 @@ import zipfile
 from .. import config
 
 IS_WINDOWS = sys.platform == "win32"
+IS_MAC = sys.platform == "darwin"
 
 # One look for every window the toolkit opens. Matches the radial menu.
 BG = "#1E2129"
@@ -24,7 +25,8 @@ LINE = "#3A404C"
 TEXT = "#E8EAF0"
 MUTED = "#A9AFBC"
 ACCENT = "#3D7BF5"
-FONT = "Segoe UI" if IS_WINDOWS else "Helvetica"
+FONT = "Segoe UI" if IS_WINDOWS else ("Helvetica Neue" if IS_MAC
+                                      else "Helvetica")
 
 NO_WINDOW = 0x08000000 if IS_WINDOWS else 0
 
@@ -370,6 +372,10 @@ SEVENZIP_VERSIONS = ("25.01", "25.00", "24.09", "24.08")
 
 
 def sevenzip_path():
+    if IS_MAC:
+        mine = os.path.join(tools_dir(), "7zip", "7zz")
+        if os.path.isfile(mine):
+            return mine
     if IS_WINDOWS:
         mine = os.path.join(tools_dir(), "7zip", "7za.exe")
         if os.path.isfile(mine):
@@ -386,6 +392,8 @@ def get_7zip(progress=None):
     have = sevenzip_path()
     if have:
         return have
+    if IS_MAC:
+        return _get_7zip_mac(progress)
     if not IS_WINDOWS:
         raise RuntimeError("7-Zip is not installed")
     folder = os.path.join(tools_dir(), "7zip")
@@ -406,6 +414,33 @@ def get_7zip(progress=None):
             if os.path.isfile(os.path.join(folder, "7za.exe")):
                 return os.path.join(folder, "7za.exe")
             last = done.stderr.decode(errors="replace")
+        except Exception as exc:          # noqa: BLE001 - try the next one
+            last = exc
+    raise RuntimeError("could not get 7-Zip (%s)" % last)
+
+
+def _get_7zip_mac(progress=None):
+    """7-Zip's own macOS build (one universal 7zz binary)."""
+    import tarfile
+    folder = os.path.join(tools_dir(), "7zip")
+    os.makedirs(folder, exist_ok=True)
+    last = None
+    for ver in SEVENZIP_VERSIONS:
+        name = "7z%s-mac.tar.xz" % ver.replace(".", "")
+        url = "https://github.com/ip7z/7zip/releases/download/%s/%s" % (
+            ver, name)
+        try:
+            pack = download(url, os.path.join(folder, name), progress,
+                            "Getting 7-Zip")
+            with tarfile.open(pack, "r:xz") as tar:
+                member = tar.getmember("7zz")
+                with tar.extractfile(member) as src, \
+                        open(os.path.join(folder, "7zz"), "wb") as out:
+                    shutil.copyfileobj(src, out)
+            os.remove(pack)
+            path = os.path.join(folder, "7zz")
+            os.chmod(path, 0o755)
+            return path
         except Exception as exc:          # noqa: BLE001 - try the next one
             last = exc
     raise RuntimeError("could not get 7-Zip (%s)" % last)
@@ -585,9 +620,36 @@ def ask_text(root, title, intro, default=""):
 
 # -- which files -------------------------------------------------------
 
+def finder_selection(pid):
+    """macOS: the files selected in Finder, if Finder was in front."""
+    try:
+        from AppKit import NSRunningApplication
+        app = NSRunningApplication.runningApplicationWithProcessIdentifier_(
+            int(pid))
+        if app is None or str(app.bundleIdentifier()) != "com.apple.finder":
+            return []
+    except Exception:
+        return []
+    script = ('tell application "Finder" to set s to selection as alias list\n'
+              'set out to ""\n'
+              'repeat with f in s\n'
+              'set out to out & POSIX path of f & linefeed\n'
+              'end repeat\n'
+              'return out')
+    try:
+        done = run(["osascript", "-e", script], timeout=6)
+        paths = [p.strip() for p in
+                 done.stdout.decode("utf-8", "replace").splitlines()]
+        return [p.rstrip("/") for p in paths if p and os.path.exists(p)]
+    except Exception:
+        return []
+
+
 def explorer_selection(hwnd):
-    """The files selected in the Explorer window `hwnd`, if that is what
-    was in front when the menu was opened. [] otherwise."""
+    """The files selected in the Explorer window `hwnd` (Finder on a Mac),
+    if that is what was in front when the menu was opened. [] otherwise."""
+    if IS_MAC and hwnd:
+        return finder_selection(hwnd)
     if not IS_WINDOWS or not hwnd:
         return []
     script = (
@@ -661,6 +723,13 @@ def pick_folder(ctrl, title):
 def key_down(name):
     """Is Enter or Escape held right now, whichever window has focus?
     Watched, not taken: the key still reaches the app in front."""
+    if IS_MAC:
+        try:
+            from .. import platform_util
+            return platform_util.key_is_down({"enter": "return",
+                                              "esc": "escape"}[name])
+        except Exception:
+            return False
     if not IS_WINDOWS:
         return False
     import ctypes
@@ -755,7 +824,22 @@ class StopBar:
 # -- clipboard ---------------------------------------------------------
 
 def image_to_clipboard(image):
-    """Put a picture on the Windows clipboard, so it pastes anywhere."""
+    """Put a picture on the clipboard, so it pastes anywhere."""
+    if IS_MAC:
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        tmp.close()
+        image.save(tmp.name)
+        try:
+            done = run(["osascript", "-e", 'set the clipboard to (read '
+                        '(POSIX file "%s") as «class PNGf»)' % tmp.name],
+                       timeout=10)
+            return done.returncode == 0
+        finally:
+            try:
+                os.remove(tmp.name)
+            except OSError:
+                pass
     if not IS_WINDOWS:
         return False
     import ctypes

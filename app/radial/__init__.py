@@ -138,5 +138,8 @@ def open_menu(ctrl):
     except Exception:
         pass
     spec = getattr(ctrl, "radial_hotkey", None) or "alt+space"
-    shortcut = " + ".join(p.capitalize() for p in spec.split("+"))
+    names = {"alt": "Option", "ctrl": "Control", "cmd": "Command"} \
+        if sys.platform == "darwin" else {}
+    shortcut = " + ".join(names.get(p, p.capitalize())
+                          for p in spec.split("+"))
     RadialMenu(ctrl, _tools(), front, SUPPORT_URL, shortcut)

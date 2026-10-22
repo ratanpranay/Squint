@@ -23,6 +23,7 @@ import tkinter.font as tkfont
 from . import common
 
 IS_WINDOWS = sys.platform == "win32"
+IS_MAC = sys.platform == "darwin"
 KEY = "#010203"                 # the see-through colour
 
 RING_BG = "#181B22"
@@ -56,7 +57,8 @@ class RadialMenu:
 
         root = ctrl.root
         px, py = root.winfo_pointerxy()
-        self.mon = mon = self._monitor(px, py)
+        self.mon = mon = self._monitor(px, py) or (
+            0, 0, root.winfo_screenwidth(), root.winfo_screenheight())
         scale = 1.0
         try:
             from .. import platform_util
@@ -71,10 +73,20 @@ class RadialMenu:
         win.attributes("-topmost", True)
         win.geometry("%dx%d+%d+%d" % (width, height, left, top))
         bg = KEY if IS_WINDOWS else "#0B0D11"
-        win.configure(bg=bg)
         if IS_WINDOWS:
+            win.configure(bg=bg)
             win.attributes("-transparentcolor", KEY)
+        elif IS_MAC and float(tk.TkVersion) < 9.0:
+            # Tk 8.6 on a Mac: only what is drawn shows. (Tk 9 paints
+            # "systemTransparent" black; it gets the dimmed screen below.)
+            try:
+                win.attributes("-transparent", True)
+                bg = "systemTransparent"
+            except tk.TclError:
+                pass
+            win.configure(bg=bg)
         else:
+            win.configure(bg=bg)
             try:
                 win.attributes("-alpha", 0.95)
             except tk.TclError:
@@ -118,6 +130,21 @@ class RadialMenu:
 
     @staticmethod
     def _monitor(px, py):
+        if IS_MAC:
+            # Points, as Tk uses them on a Mac (mss gives pixels).
+            try:
+                from AppKit import NSScreen
+                screens = NSScreen.screens()
+                main_h = screens[0].frame().size.height
+                for scr in screens:
+                    f = scr.frame()
+                    x, w, h = f.origin.x, f.size.width, f.size.height
+                    y = main_h - (f.origin.y + h)
+                    if x <= px < x + w and y <= py < y + h:
+                        return (int(x), int(y), int(w), int(h))
+            except Exception:
+                pass
+            return None
         try:
             from .. import platform_util
             for (x, y, w, h) in platform_util.displays():
@@ -503,6 +530,8 @@ class RadialMenu:
             self.back()
 
     def _take_focus(self):
+        if IS_MAC:
+            self._mac_front()
         try:
             self.win.lift()
             self.win.focus_force()
@@ -514,6 +543,40 @@ class RadialMenu:
                 self.win.after(600, self._watch_front)
         except Exception:
             pass
+
+    def _mac_front(self):
+        """Make Squint the active app, so the ring gets the keyboard, and
+        watch for Escape and for another app coming to the front."""
+        try:
+            from AppKit import NSApplication
+            NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+        except Exception:
+            pass
+        self.win.after(500, self._mac_watch)
+
+    def _mac_watch(self):
+        if self.closed:
+            return
+        try:
+            from .. import platform_util
+            if platform_util.key_is_down("escape") and not self._typing():
+                if not getattr(self, "_esc_down", False):
+                    self._esc_down = True
+                    self._escape()
+                    if self.closed:
+                        return
+            else:
+                self._esc_down = False
+            from AppKit import NSWorkspace
+            import os
+            front = NSWorkspace.sharedWorkspace().frontmostApplication()
+            if front is not None and int(front.processIdentifier()) != \
+                    os.getpid() and not self.pinned:
+                self.close()
+                return
+        except Exception:
+            pass
+        self.win.after(120, self._mac_watch)
 
     def _watch_front(self):
         """Close once another window comes to the front, unless the user is

@@ -754,7 +754,8 @@ class Controller:
         # shortcut beside Squint's own, which stay exactly as they were.
         self.hk_radial_id = None
         self.radial_hotkey = None
-        if sys.platform == "win32" and CFG.get("radial_enabled", True):
+        if sys.platform in ("win32", "darwin") and \
+                CFG.get("radial_enabled", True):
             spec = CFG.get("hotkey_radial") or "alt+space"
             # 1.50-1.52 shipped Ctrl+Alt+Space; the quicker Alt+Space is
             # the default now, unless someone chose another on purpose.
