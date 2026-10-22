@@ -513,17 +513,12 @@ def nearby_cmd(ctrl, selection=None, **_):
                               % device["name"])
         bar.pump()
 
-        def work():
-            try:
-                return push(device, files, bar)
-            finally:
-                ctrl.root.after(0, bar.close)
-
         common.in_background(
-            ctrl, work, lambda n: common.tell(ctrl, "Sent %d file%s to %s."
-                                              % (n, "" if n == 1 else "s",
-                                                 device["name"])),
-            "Sending")
+            ctrl, lambda: push(device, files, bar),
+            lambda n: common.tell(ctrl, "Sent %d file%s to %s."
+                                  % (n, "" if n == 1 else "s",
+                                     device["name"])),
+            "Sending", progress=bar)
 
     def look():
         if not win.winfo_exists():

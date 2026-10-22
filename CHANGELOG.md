@@ -20,6 +20,24 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## 1.50.1 — 2026-10-22
+
+### Changed
+
+- **Extract media saves to Downloads\\Squint.** Pictures, videos and sounds
+  pulled out of a PowerPoint, Word or PDF now go into their own folder in
+  Downloads\\Squint (named after the file), with a progress bar while it
+  works, and the folder opens by itself when it is done.
+
+### Fixed
+
+- **Progress windows could stay open or freeze.** The bar shown while the
+  video tools or 7-Zip download, or while files are sent to another
+  computer, was closed from the wrong place; it now always closes when the
+  work ends, whether it worked or not.
+
+---
+
 ## 1.50.0 — 2026-10-22
 
 ### Added

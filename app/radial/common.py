@@ -163,8 +163,12 @@ def failed(ctrl, what, exc):
 
 # -- background work ---------------------------------------------------
 
-def in_background(ctrl, work, done=None, what="That"):
-    """Run `work()` off the Tk thread; call `done(result)` back on it."""
+def in_background(ctrl, work, done=None, what="That", progress=None):
+    """Run `work()` off the Tk thread; call `done(result)` back on it.
+
+    Nothing in `work` may touch a window: Tk is only safe from its own
+    thread. A `progress` window given here is closed on the Tk thread
+    whichever way the work ends."""
     box = queue.Queue()
 
     def runner():
@@ -183,6 +187,8 @@ def in_background(ctrl, work, done=None, what="That"):
         except queue.Empty:
             ctrl.root.after(120, poll)
             return
+        if progress is not None:
+            progress.close()
         if not ok:
             failed(ctrl, what, value)
         elif done is not None:
@@ -355,18 +361,7 @@ def with_tool(ctrl, getter, title, then):
     fetch = {"ffmpeg": get_ffmpeg, "7zip": get_7zip}[getter]
     bar = Progress(ctrl.root, title)
     bar.pump()
-
-    def done(path):
-        bar.close()
-        then(path)
-
-    def work():
-        try:
-            return fetch(bar)
-        finally:
-            ctrl.root.after(0, bar.close)
-
-    in_background(ctrl, work, done, title)
+    in_background(ctrl, lambda: fetch(bar), then, title, progress=bar)
 
 
 # -- small dialogs -----------------------------------------------------

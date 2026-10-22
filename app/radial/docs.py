@@ -491,29 +491,37 @@ _MEDIA_DIRS = {".pptx": "ppt/media/", ".docx": "word/media/",
                ".ppsx": "ppt/media/", ".dotx": "word/media/"}
 
 
-def extract_media(path, out_dir=None):
+def extract_media(path, out_dir=None, progress=None):
     """Every picture, video and sound inside a PowerPoint, Word or PDF,
-    saved into a folder next to it. Returns (folder, count)."""
+    saved into its own folder in Downloads/Squint (or `out_dir`).
+    `progress(done, total)` is called as files are written.
+    Returns (folder, count)."""
     base, ext = os.path.splitext(os.path.basename(path))
     ext = ext.lower()
-    folder = common.unique(os.path.join(out_dir or os.path.dirname(path),
+    folder = common.unique(os.path.join(out_dir or common.received_dir(),
                                         base + " - media"))
     os.makedirs(folder)
     count = 0
+    tick = progress or (lambda _d, _t: None)
     if ext in _MEDIA_DIRS:
         with zipfile.ZipFile(path) as zf:
-            for name in zf.namelist():
-                if name.startswith(_MEDIA_DIRS[ext]) and not name.endswith("/"):
-                    target = common.unique(os.path.join(
-                        folder, os.path.basename(name)))
-                    with zf.open(name) as src, open(target, "wb") as out:
-                        shutil.copyfileobj(src, out)
-                    count += 1
+            names = [n for n in zf.namelist()
+                     if n.startswith(_MEDIA_DIRS[ext]) and not n.endswith("/")]
+            tick(0, len(names))
+            for name in names:
+                target = common.unique(os.path.join(
+                    folder, os.path.basename(name)))
+                with zf.open(name) as src, open(target, "wb") as out:
+                    shutil.copyfileobj(src, out)
+                count += 1
+                tick(count, len(names))
     elif ext == ".pdf":
         fitz = _fitz()
         seen = set()
         with fitz.open(path) as doc:
-            for pno in range(doc.page_count):
+            pages = doc.page_count
+            tick(0, pages)
+            for pno in range(pages):
                 for info in doc.get_page_images(pno, full=True):
                     xref = info[0]
                     if xref in seen:
@@ -531,7 +539,9 @@ def extract_media(path, out_dir=None):
                     with open(target, "wb") as out:
                         out.write(img["image"])
                     count += 1
+                tick(pno + 1, pages)
     else:
+        os.rmdir(folder)
         raise RuntimeError("%s files are not supported (only PowerPoint, Word "
                            "and PDF in their current formats)" % ext)
     if count == 0:
@@ -547,9 +557,21 @@ def extract_cmd(ctrl, action, selection=None, **_):
                               selection=selection)
     if not files:
         return
+    bar = common.Progress(ctrl.root, "Extracting media")
+    bar.pump()
 
     def work():
-        return [extract_media(f) for f in files]
+        results = []
+        for i, path in enumerate(files):
+            name = os.path.basename(path)
+
+            def tick(done, total, i=i, name=name):
+                part = (done / float(total)) if total else 1.0
+                bar.set((i + part) / len(files),
+                        "%s   %d of %d" % (name, done, total))
+
+            results.append(extract_media(path, progress=tick))
+        return results
 
     def done(results):
         total = sum(n for _f, n in results)
@@ -557,8 +579,15 @@ def extract_cmd(ctrl, action, selection=None, **_):
             common.tell(ctrl, "No pictures or media found in %s."
                         % ("that file" if len(files) == 1 else "those files"))
             return
-        common.tell(ctrl, "Saved %d file%s." % (total, "" if total == 1
-                                                else "s"),
-                    next(f for f, n in results if n))
+        folders = [f for f, n in results if n]
+        # Open the folder itself, so the files are in front of the user.
+        target = folders[0] if len(folders) == 1 else common.received_dir()
+        try:
+            from .. import platform_util
+            platform_util.open_path(target)
+        except Exception:
+            pass
+        common.tell(ctrl, "Saved %d file%s to Downloads\\Squint." % (
+            total, "" if total == 1 else "s"), target)
 
-    common.in_background(ctrl, work, done, "Extracting media")
+    common.in_background(ctrl, work, done, "Extracting media", progress=bar)

@@ -1,4 +1,4 @@
-Squint 1.50.0
+Squint 1.50.1
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,16 @@ was wrong, not only that it was.
 
 
 
+
+1.50.1
+
+  - Extract media: into Downloads/Squint/<name> - media (was beside the
+    source file), Progress window driven by a per-file callback, and the
+    folder opened when done.
+    Progress windows were closed with root.after() from the worker
+    thread; Tk is not safe there and it hung in testing. in_background()
+    now takes the window and closes it on the Tk thread either way.
+---
 
 1.50.0
 
