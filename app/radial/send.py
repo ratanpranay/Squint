@@ -8,7 +8,7 @@ the same Wi-Fi. No cloud, no account, nothing installed on the phone.
 
 Everything needs a key that is only in the QR code (or handed over after
 the receiver said yes), so other machines on the network cannot read or
-drop files. Files arrive in Downloads/Squint.
+drop files. Files arrive in Downloads/Squint/Received.
 """
 import html
 import json
@@ -430,7 +430,7 @@ class ShareWindow:
                 elif kind == "received":
                     self.received.append(event[1])
                     self.status.configure(
-                        text="Received %d file%s → Downloads\\Squint"
+                        text="Received %d file%s → Downloads\\Squint\\Received"
                         % (len(self.received),
                            "" if len(self.received) == 1 else "s"))
                 elif kind == "sent":

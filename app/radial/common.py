@@ -39,23 +39,53 @@ def log(message):
 
 # -- folders -----------------------------------------------------------
 
-def _known(folder):
-    home = os.path.expanduser("~")
-    path = os.path.join(home, folder, "Squint")
+# Everything the tools make goes under Downloads/Squint, one folder per
+# tool, so there is a single place to look.
+FOLDERS = {
+    "shot": "Screenshots",
+    "rec": "Recordings",
+    "pdf": "PDF",
+    "zip": "Zip",
+    "send": "Received",
+    "conv": "Converted",
+    "ext": "Extracted media",
+}
+
+
+def base_dir():
+    path = os.path.join(os.path.expanduser("~"), "Downloads", "Squint")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def squint_dir(tool):
+    path = os.path.join(base_dir(), FOLDERS[tool])
     os.makedirs(path, exist_ok=True)
     return path
 
 
 def pictures_dir():
-    return _known("Pictures")
+    return squint_dir("shot")
 
 
 def videos_dir():
-    return _known("Videos")
+    return squint_dir("rec")
 
 
 def received_dir():
-    return _known("Downloads")
+    return squint_dir("send")
+
+
+def where(path):
+    """'Downloads\\Squint\\PDF' for a result inside our folders, else ''."""
+    try:
+        rel = os.path.relpath(os.path.abspath(path), os.path.dirname(base_dir()))
+    except ValueError:
+        return ""
+    if rel.startswith("..") or os.path.isabs(rel):
+        return ""
+    parts = rel.split(os.sep)
+    return "\\".join(["Downloads"] + parts[:2])
 
 
 def tools_dir():
@@ -79,10 +109,9 @@ def unique(path):
     return "%s (%d)%s" % (base, n, ext)
 
 
-def beside(first, name):
-    """A new file next to the first input, so results land where the user
-    was working."""
-    return unique(os.path.join(os.path.dirname(os.path.abspath(first)), name))
+def into(tool, name):
+    """A new, unused file name in that tool's folder."""
+    return unique(os.path.join(squint_dir(tool), name))
 
 
 def reveal(path):
@@ -148,6 +177,8 @@ class Toast:
 
 
 def tell(ctrl, message, path=None):
+    if path and where(path):
+        message += "\n" + where(path)
     log(message.replace("\n", " / "))
     try:
         Toast(ctrl.root, message, path)

@@ -48,7 +48,7 @@ def save_pdf(doc, path, password=""):
 
 def office_to_pdf(src, out_dir=None):
     """An Office file as PDF, through Office itself (or LibreOffice)."""
-    out_dir = out_dir or os.path.dirname(os.path.abspath(src))
+    out_dir = out_dir or common.squint_dir("conv")
     base = os.path.splitext(os.path.basename(src))[0]
     out = common.unique(os.path.join(out_dir, base + ".pdf"))
     ext = os.path.splitext(src)[1].lower()
@@ -145,10 +145,10 @@ def merge_pdfs(files, out, password=""):
 
 
 def split_pdf(path, password=""):
-    """Every page as its own PDF, in a folder next to the original."""
+    """Every page as its own PDF, in a folder in Downloads/Squint/PDF."""
     fitz = _fitz()
     base = os.path.splitext(os.path.basename(path))[0]
-    folder = common.unique(os.path.join(os.path.dirname(path),
+    folder = common.unique(os.path.join(common.squint_dir("pdf"),
                                         base + " - pages"))
     os.makedirs(folder)
     with fitz.open(path) as src:
@@ -218,22 +218,22 @@ def pdf_cmd(ctrl, action, selection=None, **_):
     base = os.path.splitext(os.path.basename(first))[0]
     if action == "to_pdf":
         name = base + ".pdf" if len(files) == 1 else "Combined %s.pdf" % common.stamp()
-        out = common.beside(first, name)
+        out = common.into("pdf", name)
         work = lambda: files_to_pdf(files, out, password)   # noqa: E731
         what = "Making the PDF"
     elif action == "merge":
-        out = common.beside(first, "Merged %s.pdf" % common.stamp())
+        out = common.into("pdf", "Merged %s.pdf" % common.stamp())
         work = lambda: merge_pdfs(files, out, password)     # noqa: E731
         what = "Merging"
     elif action == "split":
         work = lambda: split_pdf(first, password)           # noqa: E731
         what = "Splitting"
     elif action == "compress":
-        out = common.beside(first, base + " (smaller).pdf")
+        out = common.into("pdf", base + " (smaller).pdf")
         work = lambda: compress_pdf(first, out, password)   # noqa: E731
         what = "Compressing"
     else:
-        out = common.beside(first, base + " (locked).pdf")
+        out = common.into("pdf", base + " (locked).pdf")
         work = lambda: lock_pdf(first, out, password)       # noqa: E731
         what = "Locking"
 
@@ -329,7 +329,7 @@ def zip_cmd(ctrl, action, selection=None, **_):
             if name.lower().endswith(ext):
                 name = name[:-len(ext)]
                 break
-        folder = common.unique(os.path.join(os.path.dirname(path), name))
+        folder = common.unique(os.path.join(common.squint_dir("zip"), name))
         locked = _needs_password(path)
         if locked is False:
             common.in_background(
@@ -357,7 +357,7 @@ def zip_cmd(ctrl, action, selection=None, **_):
     first = files[0]
     name = (os.path.splitext(os.path.basename(first))[0] if len(files) == 1
             else "Archive %s" % common.stamp()) + ".zip"
-    out = common.beside(first, name)
+    out = common.into("zip", name)
     if action == "plain":
         common.in_background(ctrl, lambda: zip_plain(files, out),
                              lambda p: common.tell(ctrl, "Zipped.", p),
@@ -400,7 +400,7 @@ def convert_images(files, fmt, max_side=None, out_dir=None):
             if max_side and max(im.size) > max_side:
                 im.thumbnail((max_side, max_side), Image.LANCZOS)
             base = os.path.splitext(os.path.basename(path))[0]
-            folder = out_dir or os.path.dirname(path)
+            folder = out_dir or common.squint_dir("conv")
             suffix = " (%dpx)" % max_side if max_side else ""
             out = common.unique(os.path.join(folder, "%s%s.%s"
                                              % (base, suffix, fmt)))
@@ -417,9 +417,7 @@ def convert_images(files, fmt, max_side=None, out_dir=None):
 
 def video_to_mp4(ffmpeg, src):
     base = os.path.splitext(os.path.basename(src))[0]
-    out = common.beside(src, base + (" (converted)" if
-                                     src.lower().endswith(".mp4") else "")
-                        + ".mp4")
+    out = common.into("conv", base + ".mp4")
     args = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", src,
             "-c:v", "libx264", "-preset", "medium", "-crf", "23",
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
@@ -493,12 +491,12 @@ _MEDIA_DIRS = {".pptx": "ppt/media/", ".docx": "word/media/",
 
 def extract_media(path, out_dir=None, progress=None):
     """Every picture, video and sound inside a PowerPoint, Word or PDF,
-    saved into its own folder in Downloads/Squint (or `out_dir`).
+    saved into its own folder in Downloads/Squint/Extracted media.
     `progress(done, total)` is called as files are written.
     Returns (folder, count)."""
     base, ext = os.path.splitext(os.path.basename(path))
     ext = ext.lower()
-    folder = common.unique(os.path.join(out_dir or common.received_dir(),
+    folder = common.unique(os.path.join(out_dir or common.squint_dir("ext"),
                                         base + " - media"))
     os.makedirs(folder)
     count = 0
@@ -581,13 +579,13 @@ def extract_cmd(ctrl, action, selection=None, **_):
             return
         folders = [f for f, n in results if n]
         # Open the folder itself, so the files are in front of the user.
-        target = folders[0] if len(folders) == 1 else common.received_dir()
+        target = folders[0] if len(folders) == 1 else common.squint_dir("ext")
         try:
             from .. import platform_util
             platform_util.open_path(target)
         except Exception:
             pass
-        common.tell(ctrl, "Saved %d file%s to Downloads\\Squint." % (
+        common.tell(ctrl, "Saved %d file%s." % (
             total, "" if total == 1 else "s"), target)
 
     common.in_background(ctrl, work, done, "Extracting media", progress=bar)

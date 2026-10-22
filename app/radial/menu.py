@@ -113,13 +113,28 @@ class RadialMenu:
         c, si = math.cos(a), math.sin(a)
         px, py = self.cx + 212 * s * c, self.cy + 212 * s * si
         w = 250 * s
-        h = (16 + 38 + len(rows) * 42 + (58 if note else 8)) * s
+        h = (16 + 38 + len(rows) * 42) * s + self._note_height(note, w)
         left = px - w if c < -0.3 else (px if c > 0.3 else px - w / 2)
         top = py - h if si < -0.3 else (py if si > 0.3 else py - h / 2)
         _ml, _mt, mw, mh = self.mon
         left = min(max(left, 8 * s), mw - w - 8 * s)
         top = min(max(top, 8 * s), mh - h - 8 * s)
         return left, top, w, h
+
+    def _note_height(self, note, w):
+        """Room for the footer note, wrapped to the panel's width."""
+        if not note:
+            return 8 * self.s
+        font = tkfont.Font(root=self.win, font=self._f(11))
+        width = w - 34 * self.s
+        lines, line = 1, ""
+        for word in note.split():
+            trial = (line + " " + word).strip()
+            if font.measure(trial) > width and line:
+                lines, line = lines + 1, word
+            else:
+                line = trial
+        return (26 + lines * font.metrics("linespace")) * 1.0 + 12 * self.s
 
     # -- drawing -------------------------------------------------------------
 
@@ -166,10 +181,10 @@ class RadialMenu:
                       font=self._f(14, True), width=110 * s, justify="center")
         c.create_text(cx, cy + 20 * s, text="Ctrl + Alt + Space",
                       fill=common.MUTED, font=self._f(10))
-        self._draw_panel()
         c.create_text(cx, cy + r + 22 * s,
                       text="1–9 picks a tool · letters pick an action · Esc closes",
                       fill="#C9CED8", font=self._f(11))
+        self._draw_panel()
 
     def _draw_panel(self):
         c, s = self.canvas, self.s
@@ -211,7 +226,7 @@ class RadialMenu:
         if note:
             c.create_line(left + 12 * s, y + 6 * s, left + w - 12 * s,
                           y + 6 * s, fill=ITEM_LINE)
-            c.create_text(left + 18 * s, y + 30 * s, anchor="w", text=note,
+            c.create_text(left + 18 * s, y + 18 * s, anchor="nw", text=note,
                           fill="#B8BECA", font=self._f(11), width=w - 34 * s)
 
     # -- input ---------------------------------------------------------------

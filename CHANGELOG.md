@@ -20,6 +20,23 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## 1.50.2 — 2026-10-22
+
+### Changed
+
+- **One folder per tool, all in Downloads\\Squint.** Everything the tools
+  menu makes now goes into its own folder there: Screenshots, Recordings,
+  PDF, Zip, Received, Converted and Extracted media. Each tool's panel says
+  where, and so does the message when it finishes.
+
+### Fixed
+
+- **Tools menu panel over the hint line.** For the tools at the bottom of
+  the ring the panel was drawn under the "1–9 picks a tool" line, and a
+  long note could run past the panel's edge.
+
+---
+
 ## 1.50.1 — 2026-10-22
 
 ### Changed

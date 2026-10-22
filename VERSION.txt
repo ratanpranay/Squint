@@ -1,4 +1,4 @@
-Squint 1.50.1
+Squint 1.50.2
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,16 @@ was wrong, not only that it was.
 
 
 
+
+1.50.2
+
+  - Output folders: common.squint_dir(tool) = Downloads/Squint/<folder>
+    (Screenshots, Recordings, PDF, Zip, Received, Converted, Extracted
+    media); common.into() replaces beside(), which put results next to the
+    input. tell() appends the folder for results inside it.
+    Menu: the panel's height is measured from its wrapped note, and the
+    hint line is drawn before the panel so the panel covers it.
+---
 
 1.50.1
 
