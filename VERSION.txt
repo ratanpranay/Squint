@@ -1,4 +1,4 @@
-Squint 1.55.1
+Squint 1.55.2
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,18 @@ was wrong, not only that it was.
 
 
 
+
+1.55.2
+
+  - Mac camera: _mac_needs_refresh() reads NSBundle.mainBundle for
+    NSCameraUsageDescription before cv2 is touched; TCC kills the process
+    otherwise (crash report 2026-10-22). Without it, "Restart Squint"
+    spawns a detached helper that waits for this pid to exit, runs
+    mac_bundle.rebuild() for each bundle from outside, and reopens the app.
+  - Selfie check drawn in the hub: frames centre-cropped, mirrored,
+    supersampled circular alpha mask, shown as a canvas image updated with
+    itemconfigure; status and buttons in the panel.
+---
 
 1.55.1
 
