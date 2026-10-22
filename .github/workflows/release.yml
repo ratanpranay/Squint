@@ -16,7 +16,7 @@ name: Release
 on:
   push:
     branches: [main]
-    paths: [VERSION.txt, .github/workflows/release.yml]
+    paths: [VERSION.txt, .github/workflows/release.yml, "installer/**", tools/make_release.py, tools/make_installer.py]
   workflow_dispatch:
 
 permissions:
