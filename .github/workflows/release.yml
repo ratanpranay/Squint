@@ -52,6 +52,12 @@ jobs:
           sudo apt-get install -y -q nsis
           pip install uv
 
+      - name: Test the tools menu
+        if: steps.v.outputs.skip != '1'
+        run: |
+          pip install -q pillow PyMuPDF python-docx
+          python -m unittest tests.test_radial -v
+
       - name: Update package (Squint.zip, version.json)
         if: steps.v.outputs.skip != '1'
         run: python tools/make_release.py --out dist

@@ -29,6 +29,30 @@ it, so there is exactly one copy to keep true.
   and movable, and hides the ring while it is open.
 - **Mac: panel notes said "Explorer"**; they say Finder now, with Mac-style
   folder paths.
+- **Mac: number and letter keys did nothing in the ring.** 1–9 pick a tool
+  and letters pick an action, as on Windows, while the mouse is over the
+  ring or its panel.
+
+### Changed
+
+- **Smooth, matching icons in the ring** on both Windows and Mac (the Mac
+  used to show numbers instead).
+- **One text scale everywhere**: the smallest text in the panels is a
+  little bigger, buttons are the same size in every panel, and the
+  recording bar and the little pop-up messages now match the panel's look
+  and sharpen on high-resolution screens.
+- The key hint under the ring hides when a panel covers it.
+- The frame around a screenshot area is blue; red is kept for recording.
+
+### Removed
+
+- Old pop-up dialog code the panel replaced.
+
+### Added
+
+- Automatic checks of every tool (zip, PDF, media, convert, stitch, GIF,
+  calendar, world clock, QR, transfers) run before each release is built;
+  a failing check stops the release.
 
 ---
 

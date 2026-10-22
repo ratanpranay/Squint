@@ -164,6 +164,21 @@ def run(args, **kw):
 
 # -- telling the user --------------------------------------------------
 
+def screen_scale(root):
+    """The display scaling under the pointer (1.0 at 100 %)."""
+    try:
+        from .. import platform_util
+        x, y = root.winfo_pointerxy()
+        return max(1.0, (platform_util.monitor_scaling(x, y) or 100) / 100.0)
+    except Exception:
+        return 1.0
+
+
+def px_font(scale, size, bold=False):
+    """The same pixel sizes the ring's panel uses."""
+    return (FONT, -int(round(size * scale)), "bold" if bold else "normal")
+
+
 class Toast:
     """A small card in the bottom-right corner that goes away by itself.
     Clicking it opens what it is about, when there is something to open."""
@@ -178,13 +193,16 @@ class Toast:
         win.overrideredirect(True)
         win.attributes("-topmost", True)
         win.configure(bg=LINE)
-        inner = tk.Frame(win, bg=PANEL, padx=16, pady=12)
+        s = screen_scale(root)
+        inner = tk.Frame(win, bg=PANEL, padx=int(16 * s), pady=int(12 * s))
         inner.pack(padx=1, pady=1)
-        tk.Label(inner, text=message, bg=PANEL, fg=TEXT, font=(FONT, 10),
-                 justify="left", wraplength=320).pack(anchor="w")
+        tk.Label(inner, text=message, bg=PANEL, fg=TEXT,
+                 font=px_font(s, 13), justify="left",
+                 wraplength=int(320 * s)).pack(anchor="w")
         if path:
-            tk.Label(inner, text="Click to show", bg=PANEL, fg=MUTED,
-                     font=(FONT, 9)).pack(anchor="w", pady=(4, 0))
+            tk.Label(inner, text="Click to show", bg=PANEL, fg=ACCENT,
+                     font=px_font(s, 11)).pack(anchor="w",
+                                               pady=(int(4 * s), 0))
         for w in (win, inner) + tuple(inner.winfo_children()):
             w.bind("<Button-1>", self._click)
         win.update_idletasks()
@@ -262,49 +280,6 @@ def in_background(ctrl, work, done=None, what="That", progress=None):
 
     ctrl.root.after(120, poll)
 
-
-class Progress:
-    """A small window with a bar, for work that takes more than a moment."""
-
-    def __init__(self, root, title):
-        win = self.win = tk.Toplevel(root)
-        win.title(title)
-        win.configure(bg=BG)
-        win.resizable(False, False)
-        win.attributes("-topmost", True)
-        self.label = tk.Label(win, text=title, bg=BG, fg=TEXT,
-                              font=(FONT, 10), anchor="w", width=46)
-        self.label.pack(padx=18, pady=(16, 8), anchor="w")
-        self.canvas = tk.Canvas(win, width=360, height=8, bg=ROW,
-                                highlightthickness=0)
-        self.canvas.pack(padx=18, pady=(0, 18))
-        self.bar = self.canvas.create_rectangle(0, 0, 0, 8, fill=ACCENT,
-                                                width=0)
-        self.value = 0.0
-        self.text = title
-
-    def set(self, fraction, text=None):
-        """Thread-safe: only stores; the window reads it on a timer."""
-        self.value = max(0.0, min(1.0, fraction))
-        if text:
-            self.text = text
-
-    def pump(self):
-        try:
-            self.canvas.coords(self.bar, 0, 0, 360 * self.value, 8)
-            self.label.configure(text=self.text)
-            self.win.after(150, self.pump)
-        except Exception:
-            pass
-
-    def close(self):
-        try:
-            self.win.destroy()
-        except Exception:
-            pass
-
-
-# -- helper programs fetched on first use ------------------------------
 
 def download(url, dest, progress=None, label=""):
     req = urllib.request.Request(url, headers={"User-Agent": "Squint"})
@@ -446,45 +421,6 @@ def _get_7zip_mac(progress=None):
     raise RuntimeError("could not get 7-Zip (%s)" % last)
 
 
-def with_tool(ctrl, getter, title, then, anchor=None):
-    """Make sure a helper program is here, fetching it in a card with a
-    progress bar the first time, then call `then(path)` on the Tk thread."""
-    finder = {"ffmpeg": ffmpeg_path, "7zip": sevenzip_path}[getter]
-    have = finder()
-    if have:
-        then(have)
-        return
-    from .card import Card, ensure_tool
-    card = Card(ctrl, title, anchor)
-
-    def finish(path):
-        ctrl.root.after(50, lambda: then(path))
-        return None
-
-    card.run(lambda p: ensure_tool(p, getter), finish, title)
-
-
-# -- small dialogs -----------------------------------------------------
-
-def _dialog(root, title):
-    win = tk.Toplevel(root)
-    win.title(title)
-    win.configure(bg=BG)
-    win.resizable(False, False)
-    win.attributes("-topmost", True)
-    return win
-
-
-def _center(win):
-    win.update_idletasks()
-    w, h = win.winfo_reqwidth(), win.winfo_reqheight()
-    x = (win.winfo_screenwidth() - w) // 2
-    y = (win.winfo_screenheight() - h) // 3
-    win.geometry("+%d+%d" % (x, y))
-    win.lift()
-    win.focus_force()
-
-
 class FlatButton(tk.Label):
     """A button drawn as a label. On a Mac, tk.Button is the system's own
     white button and ignores the colours given to it, which left white text
@@ -537,135 +473,8 @@ def _button(parent, text, command, primary=False):
                      bg=ACCENT if primary else ROW, fg="#FFFFFF",
                      activebackground=ACCENT, activeforeground="#FFFFFF",
                      relief="flat", bd=0, highlightthickness=0, padx=16, pady=7,
-                     font=(FONT, 10),
-                     cursor="hand2")
+                     font=(FONT, -12), cursor="hand2")
 
-
-def ask_password(root, title, intro, optional=True, confirm=True,
-                 extra_check=None):
-    """A password, "" for none (when optional), or None if cancelled.
-
-    `extra_check` is (label, default) for one checkbox; when given, the
-    result is (password, checked)."""
-    win = _dialog(root, title)
-    result = {"value": None}
-    frame = tk.Frame(win, bg=BG, padx=20, pady=16)
-    frame.pack()
-    tk.Label(frame, text=intro, bg=BG, fg=TEXT, font=(FONT, 10),
-             justify="left", wraplength=340).grid(row=0, column=0,
-                                                  columnspan=2, sticky="w")
-    first = tk.StringVar()
-    second = tk.StringVar()
-    tk.Label(frame, text="Password", bg=BG, fg=MUTED,
-             font=(FONT, 9)).grid(row=1, column=0, sticky="w", pady=(12, 2))
-    e1 = tk.Entry(frame, textvariable=first, show="•", width=34,
-                  bg=ROW, fg=TEXT, insertbackground=TEXT, relief="flat",
-                  font=(FONT, 11))
-    e1.grid(row=2, column=0, columnspan=2, sticky="we", ipady=5)
-    row = 3
-    if confirm:
-        tk.Label(frame, text="Again", bg=BG, fg=MUTED,
-                 font=(FONT, 9)).grid(row=row, column=0, sticky="w",
-                                      pady=(8, 2))
-        tk.Entry(frame, textvariable=second, show="•", width=34, bg=ROW,
-                 fg=TEXT, insertbackground=TEXT, relief="flat",
-                 font=(FONT, 11)).grid(row=row + 1, column=0, columnspan=2,
-                                       sticky="we", ipady=5)
-        row += 2
-    check = tk.BooleanVar(value=bool(extra_check and extra_check[1]))
-    if extra_check:
-        tk.Checkbutton(frame, text=extra_check[0], variable=check, bg=BG,
-                       fg=TEXT, selectcolor=ROW, activebackground=BG,
-                       activeforeground=TEXT, font=(FONT, 9),
-                       anchor="w", justify="left",
-                       wraplength=330).grid(row=row, column=0, columnspan=2,
-                                            sticky="w", pady=(10, 0))
-        row += 1
-    note = tk.Label(frame, text="", bg=BG, fg="#F28B82", font=(FONT, 9))
-    note.grid(row=row, column=0, columnspan=2, sticky="w", pady=(6, 0))
-    buttons = tk.Frame(frame, bg=BG)
-    buttons.grid(row=row + 1, column=0, columnspan=2, sticky="e",
-                 pady=(10, 0))
-
-    def ok(_e=None):
-        pw = first.get()
-        if confirm and pw != second.get():
-            note.configure(text="The two passwords are not the same.")
-            return
-        if not pw and not optional:
-            note.configure(text="Type a password.")
-            return
-        result["value"] = (pw, check.get()) if extra_check else pw
-        win.destroy()
-
-    def cancel(_e=None):
-        win.destroy()
-
-    if optional:
-        _button(buttons, "No password", lambda: (first.set(""),
-                                                 second.set(""), ok())
-                ).pack(side="left", padx=(0, 8))
-    _button(buttons, "Cancel", cancel).pack(side="left", padx=(0, 8))
-    _button(buttons, "OK", ok, primary=True).pack(side="left")
-    win.bind("<Return>", ok)
-    win.bind("<Escape>", cancel)
-    _center(win)
-    e1.focus_set()
-    win.wait_window()
-    return result["value"]
-
-
-def ask_choice(root, title, intro, choices):
-    """One of `choices` (list of (key, label)), or None."""
-    win = _dialog(root, title)
-    result = {"value": None}
-    frame = tk.Frame(win, bg=BG, padx=20, pady=16)
-    frame.pack()
-    tk.Label(frame, text=intro, bg=BG, fg=TEXT, font=(FONT, 10),
-             justify="left", wraplength=340).pack(anchor="w", pady=(0, 10))
-    for key, label in choices:
-        def pick(k=key):
-            result["value"] = k
-            win.destroy()
-        b = _button(frame, label, pick)
-        b.configure(anchor="w", width=34)
-        b.pack(fill="x", pady=2)
-    win.bind("<Escape>", lambda _e: win.destroy())
-    _center(win)
-    win.wait_window()
-    return result["value"]
-
-
-def ask_text(root, title, intro, default=""):
-    win = _dialog(root, title)
-    result = {"value": None}
-    frame = tk.Frame(win, bg=BG, padx=20, pady=16)
-    frame.pack()
-    tk.Label(frame, text=intro, bg=BG, fg=TEXT, font=(FONT, 10),
-             justify="left", wraplength=340).pack(anchor="w")
-    var = tk.StringVar(value=default)
-    entry = tk.Entry(frame, textvariable=var, width=36, bg=ROW, fg=TEXT,
-                     insertbackground=TEXT, relief="flat", font=(FONT, 11))
-    entry.pack(fill="x", pady=(10, 0), ipady=5)
-    buttons = tk.Frame(frame, bg=BG)
-    buttons.pack(anchor="e", pady=(12, 0))
-
-    def ok(_e=None):
-        result["value"] = var.get()
-        win.destroy()
-
-    _button(buttons, "Cancel", win.destroy).pack(side="left", padx=(0, 8))
-    _button(buttons, "OK", ok, primary=True).pack(side="left")
-    win.bind("<Return>", ok)
-    win.bind("<Escape>", lambda _e: win.destroy())
-    _center(win)
-    entry.focus_set()
-    entry.select_range(0, "end")
-    win.wait_window()
-    return result["value"]
-
-
-# -- which files -------------------------------------------------------
 
 def finder_selection(pid):
     """macOS: the files selected in Finder, if Finder was in front."""
@@ -789,34 +598,6 @@ def pick_files(ctrl, title, types, many=True, selection=None):
         parent.destroy()
 
 
-def save_as(ctrl, title, initial, types):
-    from tkinter import filedialog
-    parent = tk.Toplevel(ctrl.root)
-    parent.withdraw()
-    parent.attributes("-topmost", True)
-    try:
-        return filedialog.asksaveasfilename(
-            parent=parent, title=title, filetypes=types,
-            initialdir=os.path.dirname(initial),
-            initialfile=os.path.basename(initial),
-            defaultextension=os.path.splitext(initial)[1])
-    finally:
-        parent.destroy()
-
-
-def pick_folder(ctrl, title):
-    from tkinter import filedialog
-    parent = tk.Toplevel(ctrl.root)
-    parent.withdraw()
-    parent.attributes("-topmost", True)
-    try:
-        return filedialog.askdirectory(parent=parent, title=title)
-    finally:
-        parent.destroy()
-
-
-# -- keys while something runs -----------------------------------------
-
 def key_down(name):
     """Is Enter or Escape held right now, whichever window has focus?
     Watched, not taken: the key still reaches the app in front."""
@@ -853,19 +634,23 @@ class StopBar:
         win.overrideredirect(True)
         win.attributes("-topmost", True)
         win.configure(bg=LINE)
-        bar = tk.Frame(win, bg=PANEL, padx=12, pady=8)
+        s = screen_scale(ctrl.root)
+        bar = tk.Frame(win, bg=PANEL, padx=int(12 * s), pady=int(8 * s))
         bar.pack(padx=1, pady=1)
         self.dot = tk.Label(bar, text="●", bg=PANEL, fg="#F05252",
-                            font=(FONT, 12))
+                            font=px_font(s, 15))
         self.dot.pack(side="left")
         self.time = tk.Label(bar, text="0:00", bg=PANEL, fg=TEXT,
-                             font=(FONT, 10, "bold"), width=5)
-        self.time.pack(side="left", padx=(6, 8))
+                             font=px_font(s, 13, True), width=5)
+        self.time.pack(side="left", padx=(int(6 * s), int(8 * s)))
         tk.Label(bar, text=label, bg=PANEL, fg=MUTED,
-                 font=(FONT, 9)).pack(side="left", padx=(0, 12))
-        _button(bar, "Stop  (Enter)", self.stop, primary=True).pack(
-            side="left", padx=(0, 6))
-        _button(bar, "Cancel  (Esc)", self.cancel).pack(side="left")
+                 font=px_font(s, 12)).pack(side="left", padx=(0, int(12 * s)))
+        for text, cmd, primary in (("Stop  (Enter)", self.stop, True),
+                                   ("Cancel  (Esc)", self.cancel, False)):
+            b = _button(bar, text, cmd, primary)
+            b.configure(font=px_font(s, 12), padx=int(14 * s),
+                        pady=int(6 * s))
+            b.pack(side="left", padx=(0, int(6 * s)))
         win.update_idletasks()
         w = win.winfo_reqwidth()
         x = (win.winfo_screenwidth() - w) // 2

@@ -120,7 +120,7 @@ def firewall_row(ctrl, menu, frame):
     box.pack(fill="x", pady=(0, int(8 * s)))
     text = tk.Label(box, text="Windows may stop other devices reaching this "
                     "PC. Allow it once (Windows asks to confirm).",
-                    bg="#3A3320", fg="#F5D58A", font=menu.f(10),
+                    bg="#3A3320", fg="#F5D58A", font=menu.f(11),
                     justify="left", anchor="w",
                     wraplength=menu.panel_width() - int(90 * s),
                     padx=int(8 * s), pady=int(6 * s))
@@ -159,11 +159,11 @@ def name_row(menu, frame):
         for child in row.winfo_children():
             child.destroy()
         tk.Label(row, text="You appear as", bg=common.PANEL, fg=common.MUTED,
-                 font=menu.f(10)).pack(side="left")
+                 font=menu.f(11)).pack(side="left")
         tk.Label(row, text=device_name(), bg=common.PANEL, fg="#FFFFFF",
                  font=menu.f(11, True)).pack(side="left", padx=int(6 * s))
         change = tk.Label(row, text="Change", bg=common.PANEL,
-                          fg="#8FB4FF", font=menu.f(10), cursor="hand2")
+                          fg="#8FB4FF", font=menu.f(11), cursor="hand2")
         change.pack(side="right")
         change.bind("<Button-1>", lambda _e: edit())
         menu.relayout()
@@ -526,7 +526,7 @@ def _share_view(ctrl, menu, title, intro, shared=()):
         menu.header(frame, title, close=True)
         firewall_row(ctrl, menu, frame)
         tk.Label(frame, text=intro, bg=common.PANEL, fg=common.MUTED,
-                 font=menu.f(10), justify="left", anchor="w",
+                 font=menu.f(11), justify="left", anchor="w",
                  wraplength=menu.panel_width()).pack(fill="x")
         status = tk.Label(frame, text="Waiting…  (same Wi-Fi only)",
                           bg=common.PANEL, fg=common.TEXT, font=menu.f(11),
@@ -572,7 +572,7 @@ def _share_view(ctrl, menu, title, intro, shared=()):
                          % (offer.get("from", "A computer"), len(files),
                             "" if len(files) == 1 else "s", _size(size),
                             names), bg=common.ROW, fg=common.TEXT,
-                         font=menu.f(10), justify="left", anchor="w",
+                         font=menu.f(11), justify="left", anchor="w",
                          wraplength=menu.panel_width() - int(16 * s),
                          padx=int(8 * s), pady=int(6 * s)).pack(
                     fill="x", pady=(int(8 * s), int(4 * s)))
@@ -679,7 +679,7 @@ def nearby_cmd(ctrl, selection=None, menu=None, **_):
         listing.pack(fill="x")
         searching = tk.Label(frame, text="Looking for computers…",
                              bg=common.PANEL, fg=common.MUTED,
-                             font=menu.f(10), anchor="w")
+                             font=menu.f(11), anchor="w")
         searching.pack(fill="x", pady=(int(4 * s), 0))
         menu.note(frame, "Open Squint's Receive on the other computer. "
                   "Same Wi-Fi only.")

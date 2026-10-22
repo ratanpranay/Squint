@@ -63,7 +63,7 @@ class Card:
         close.pack(side="right")
         close.bind("<Button-1>", lambda _e: self.cancel())
         self.subtitle = tk.Label(self.frame, text=subtitle, bg=common.PANEL,
-                                 fg=common.MUTED, font=self._f(10),
+                                 fg=common.MUTED, font=self._f(11),
                                  anchor="w", justify="left",
                                  wraplength=self.w - int(28 * s))
         if subtitle:
@@ -148,7 +148,7 @@ class Card:
 
     def _button(self, parent, text, command, primary=False):
         b = common._button(parent, text, command, primary)
-        b.configure(font=self._f(11), padx=int(14 * self.s),
+        b.configure(font=self._f(12), padx=int(14 * self.s),
                     pady=int(6 * self.s))
         return b
 
@@ -176,12 +176,12 @@ class Card:
             kind = field["kind"]
             if kind == "note":
                 tk.Label(self.body, text=field["text"], bg=common.PANEL,
-                         fg=common.MUTED, font=self._f(10), justify="left",
+                         fg=common.MUTED, font=self._f(11), justify="left",
                          wraplength=self.w - int(28 * s), anchor="w").pack(
                     fill="x", pady=(0, int(8 * s)))
             elif kind == "choice":
                 tk.Label(self.body, text=field["label"], bg=common.PANEL,
-                         fg=common.MUTED, font=self._f(10), anchor="w").pack(
+                         fg=common.MUTED, font=self._f(11), anchor="w").pack(
                     fill="x")
                 var = tk.StringVar(value=field.get("default",
                                                    field["options"][0][0]))
@@ -199,7 +199,7 @@ class Card:
                 for i, (key, text) in enumerate(field["options"]):
                     b = (common.FlatButton if common.IS_MAC
                          else tk.Button)(row, text=text, relief="flat", bd=0,
-                                  highlightthickness=0, font=self._f(10),
+                                  highlightthickness=0, font=self._f(11),
                                   padx=int(8 * s), pady=int(5 * s),
                                   cursor="hand2",
                                   activebackground=common.ACCENT,
@@ -218,7 +218,7 @@ class Card:
                                selectcolor=common.ROW,
                                activebackground=common.PANEL,
                                activeforeground=common.TEXT, highlightthickness=0,
-                               font=self._f(10), anchor="w", justify="left",
+                               font=self._f(11), anchor="w", justify="left",
                                wraplength=self.w - int(50 * s)).pack(
                     fill="x", pady=(0, int(6 * s)))
             elif kind == "password":
@@ -230,7 +230,7 @@ class Card:
 
                 def entry(parent, var, label):
                     tk.Label(parent, text=label, bg=common.PANEL,
-                             fg=common.MUTED, font=self._f(10),
+                             fg=common.MUTED, font=self._f(11),
                              anchor="w").pack(fill="x")
                     e = tk.Entry(parent, textvariable=var, show="•",
                                  bg=common.ROW, fg=common.TEXT,
@@ -268,7 +268,7 @@ class Card:
                 checks.append((on, pw1, pw2))
 
         self.error = tk.Label(self.body, text="", bg=common.PANEL,
-                              fg="#F28B82", font=self._f(10), anchor="w",
+                              fg="#F28B82", font=self._f(11), anchor="w",
                               justify="left", wraplength=self.w - int(28 * s))
         self.error.pack(fill="x")
         row = tk.Frame(self.body, bg=common.PANEL)
@@ -328,7 +328,7 @@ class Card:
         self.fill = self.canvas.create_rectangle(0, 0, 0, int(8 * s),
                                                  fill=common.ACCENT, width=0)
         self.detail = tk.Label(self.body, text="", bg=common.PANEL,
-                               fg=common.MUTED, font=self._f(10), anchor="w")
+                               fg=common.MUTED, font=self._f(11), anchor="w")
         self.detail.pack(fill="x")
         row = tk.Frame(self.body, bg=common.PANEL)
         row.pack(fill="x", pady=(int(8 * s), 0))
@@ -421,7 +421,7 @@ class Card:
             fill="x")
         if path and common.where(path):
             tk.Label(self.body, text=common.where(path), bg=common.PANEL,
-                     fg=common.MUTED, font=self._f(10), anchor="w").pack(
+                     fg=common.MUTED, font=self._f(11), anchor="w").pack(
                 fill="x", pady=(int(4 * s), 0))
         row = tk.Frame(self.body, bg=common.PANEL)
         row.pack(fill="x", pady=(int(10 * s), 0))
@@ -469,7 +469,7 @@ class Card:
                  fg="#F28B82", font=self._f(12, True), anchor="w").pack(
             fill="x")
         tk.Label(self.body, text=message[:400], bg=common.PANEL,
-                 fg=common.TEXT, font=self._f(10), anchor="w",
+                 fg=common.TEXT, font=self._f(11), anchor="w",
                  justify="left", wraplength=self.w - int(28 * s)).pack(
             fill="x", pady=(int(4 * s), 0))
         row = tk.Frame(self.body, bg=common.PANEL)

@@ -64,7 +64,7 @@ def _start_video(ctrl, ffmpeg, box):
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.PIPE,
                             creationflags=common.NO_WINDOW)
-    outline = Outline(ctrl.root, box)
+    outline = Outline(ctrl.root, box, "#F05252")
 
     def stop():
         outline.close()
@@ -116,7 +116,7 @@ def gif(ctrl, **_):
     area = {"left": left, "top": top, "width": w, "height": h}
     frames = []
     state = {"running": True, "next": time.time()}
-    outline = Outline(ctrl.root, box)
+    outline = Outline(ctrl.root, box, "#F05252")
 
     def grab():
         if not state["running"]:

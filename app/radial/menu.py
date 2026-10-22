@@ -20,7 +20,7 @@ import sys
 import tkinter as tk
 import tkinter.font as tkfont
 
-from . import common
+from . import common, icons
 
 IS_WINDOWS = sys.platform == "win32"
 IS_MAC = sys.platform == "darwin"
@@ -102,10 +102,6 @@ class RadialMenu:
         # Room above the ring for the support line.
         self.cy = min(max(py - top, margin + 40 * s), height - margin)
 
-        families = set(tkfont.families(root))
-        self.icon_font = next((f for f in ("Segoe Fluent Icons",
-                                           "Segoe MDL2 Assets")
-                               if f in families), None)
 
         # The panel: a border frame holding a padded content frame.
         self.panel_outer = tk.Frame(self.canvas, bg=ITEM_LINE)
@@ -190,13 +186,9 @@ class RadialMenu:
                           fill=common.ACCENT if on else ITEM_BG,
                           outline=common.ACCENT if on else ITEM_LINE,
                           width=max(1, int(s)), tags="ring")
-            if self.icon_font:
-                c.create_text(x, y - 9 * s, text=tool["glyph"], fill=fg,
-                              font=(self.icon_font, -int(22 * s)), tags="ring")
-            else:
-                c.create_text(x, y - 6 * s, text=str(i + 1), fill=fg,
-                              font=self.f(16, True), tags="ring")
-            c.create_text(x, y + 16 * s, text=tool["label"], fill=fg,
+            # Drawn, not taken from a font: the same on Windows and Mac.
+            icons.draw(c, tool["key"], x, y - 8 * s, 22 * s, fg, tags="ring")
+            c.create_text(x, y + 17 * s, text=tool["label"], fill=fg,
                           font=self.f(11, True), tags="ring")
             self.item_hits.append((x, y, rr))
         if self.hub_qr:
@@ -227,8 +219,9 @@ class RadialMenu:
         else:
             hint = "1–9 picks a tool · letters pick an action · Esc goes back"
         c.create_text(cx, cy + r + 22 * s, text=hint,
-                      fill="#C9CED8", font=self.f(11), tags="ring")
+                      fill="#C9CED8", font=self.f(11), tags=("ring", "hint"))
         c.tag_raise(self.panel_item)
+        self._fit_hint()
 
     def _draw_hub(self):
         c, s, cx, cy = self.canvas, self.s, self.cx, self.cy
@@ -250,7 +243,7 @@ class RadialMenu:
                       font=self.f(14, True), width=110 * s, justify="center",
                       tags="ring")
         c.create_text(cx, cy + 30 * s, text=self.shortcut,
-                      fill=common.MUTED, font=self.f(10), tags="ring")
+                      fill=common.MUTED, font=self.f(11), tags="ring")
 
     def _pill(self, x0, y0, x1, y1, r, **kw):
         r = min(r, (y1 - y0) / 2.0)
@@ -352,6 +345,8 @@ class RadialMenu:
             return
         if self.selected is None:
             self.canvas.itemconfigure(self.panel_item, state="hidden")
+            self.panel_box = None
+            self._fit_hint()
             return
         self.panel_outer.update_idletasks()
         w = self.panel_outer.winfo_reqwidth()
@@ -368,6 +363,23 @@ class RadialMenu:
         self.canvas.coords(self.panel_item, left, top)
         self.canvas.itemconfigure(self.panel_item, state="normal")
         self.panel_box = (left, top, w, h)
+        self._fit_hint()
+
+    def _fit_hint(self):
+        """The key hint under the ring hides while the panel covers any
+        of it, so no half-sentence pokes out from under the panel."""
+        c = self.canvas
+        box = c.bbox("hint")
+        if not box:
+            return
+        covered = False
+        pb = getattr(self, "panel_box", None)
+        if pb and c.itemcget(self.panel_item, "state") != "hidden":
+            left, top, w, h = pb
+            x0, y0, x1, y1 = box
+            covered = not (x1 < left or x0 > left + w or
+                           y1 < top or y0 > top + h)
+        c.itemconfigure("hint", state="hidden" if covered else "normal")
 
     def header(self, parent, title, right=None, close=False):
         row = tk.Frame(parent, bg=common.PANEL)
@@ -381,7 +393,7 @@ class RadialMenu:
             x.bind("<Button-1>", lambda _e: self.back())
         elif right:
             tk.Label(row, text=right, bg=common.PANEL, fg=common.MUTED,
-                     font=self.f(10)).pack(side="right")
+                     font=self.f(11)).pack(side="right")
         tk.Frame(parent, bg=common.PANEL, width=self.panel_width(),
                  height=int(8 * self.s)).pack()
         return row
@@ -390,7 +402,7 @@ class RadialMenu:
         tk.Frame(parent, bg=ITEM_LINE, height=1).pack(
             fill="x", pady=(int(6 * self.s), int(8 * self.s)))
         tk.Label(parent, text=text, bg=common.PANEL, fg="#B8BECA",
-                 font=self.f(10), anchor="w", justify="left",
+                 font=self.f(11), anchor="w", justify="left",
                  wraplength=self.panel_width()).pack(fill="x")
 
     def row(self, parent, label, command, hint=""):
@@ -419,7 +431,7 @@ class RadialMenu:
 
     def button(self, parent, text, command, primary=False):
         b = common._button(parent, text, command, primary)
-        b.configure(font=self.f(11), padx=int(14 * self.s),
+        b.configure(font=self.f(12), padx=int(14 * self.s),
                     pady=int(6 * self.s))
         return b
 
@@ -619,6 +631,7 @@ class RadialMenu:
                 self._last_pointer = (px, py)
                 self._mac_hover(px, py)
             from .. import platform_util
+            self._mac_keys()
             if platform_util.key_is_down("escape") and not self._typing():
                 if not getattr(self, "_esc_down", False):
                     self._esc_down = True
@@ -640,6 +653,58 @@ class RadialMenu:
         except Exception as exc:          # noqa: BLE001 - keep watching
             common.log("mac watch: %r" % exc)
         self.win.after(50, self._mac_watch)
+
+    def _mac_keys(self):
+        """1-9, A-Z and Return, read straight from the keyboard - the same
+        keys as on Windows, where they arrive as events."""
+        if self._typing() or self.pinned or not self._pointer_on_ring():
+            # The key also reaches the app in front (the ring does not take
+            # the keyboard on a Mac), so only act while the mouse says the
+            # person is using the ring.
+            self._keys_down = set()
+            return
+        try:
+            from .. import platform_util
+            from ..hotkey_carbon import KEY_CODES
+            asker = platform_util._key_state()
+        except Exception:
+            return
+        if asker is None:
+            return
+        names = [str(n) for n in range(1, 10)] + \
+            [chr(c) for c in range(97, 123)] + ["return"]
+        down = set()
+        for name in names:
+            code = KEY_CODES.get(name)
+            try:
+                if code is not None and asker(code):
+                    down.add(name)
+            except Exception:
+                return
+        fresh = down - getattr(self, "_keys_down", set())
+        self._keys_down = down
+        for name in sorted(fresh):
+
+            class Event:
+                pass
+
+            e = Event()
+            e.char = "" if name == "return" else name
+            e.keysym = "Return" if name == "return" else name
+            self._key(e)
+            if self.closed or self.pinned:
+                return
+
+    def _pointer_on_ring(self):
+        px, py = self._last_pointer or self.win.winfo_pointerxy()
+        x, y = px - self.mon[0], py - self.mon[1]
+        r = 200 * self.s
+        if (x - self.cx) ** 2 + (y - self.cy) ** 2 <= r * r:
+            return True
+        if self.canvas.itemcget(self.panel_item, "state") != "hidden":
+            left, top, w, h = getattr(self, "panel_box", None) or (0, 0, 0, 0)
+            return left <= x <= left + w and top <= y <= top + h
+        return False
 
     def _mac_hover(self, px, py):
         """What <Motion>, <Enter> and <Leave> would have done."""
@@ -713,7 +778,7 @@ class RadialMenu:
             x, y = px - self.mon[0], py - self.mon[1]
             inside = False
             if self.view == "hover":
-                left, top, w, h = getattr(self, "panel_box", (0, 0, 0, 0))
+                left, top, w, h = getattr(self, "panel_box", None) or (0, 0, 0, 0)
                 inside = left <= x <= left + w and top <= y <= top + h
             ix, iy, rr = self.item_hits[self.selected]
             on_tool = (x - ix) ** 2 + (y - iy) ** 2 <= rr * rr

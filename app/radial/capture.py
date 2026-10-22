@@ -158,7 +158,7 @@ class Outline:
     """A thin frame around the area being captured, kept out of the
     capture itself."""
 
-    def __init__(self, root, box, colour="#F05252"):
+    def __init__(self, root, box, colour=common.ACCENT):
         import tkinter as tk
         left, top, w, h = box
         self.wins = []
@@ -362,7 +362,7 @@ def selfie(ctrl, menu=None, **_):
         status.pack(fill="x")
         tk.Label(frame, text="Only on this computer: nothing is recorded or "
                  "sent unless you save a photo.", bg=common.PANEL,
-                 fg=common.MUTED, font=menu.f(10), anchor="w",
+                 fg=common.MUTED, font=menu.f(11), anchor="w",
                  justify="left", wraplength=menu.panel_width()).pack(
             fill="x", pady=(int(4 * s), 0))
         row = tk.Frame(frame, bg=common.PANEL)
