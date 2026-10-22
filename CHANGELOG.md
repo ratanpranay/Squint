@@ -26,6 +26,8 @@ it, so there is exactly one copy to keep true.
 
 - **Support line on a white background**, readable over anything behind
   the ring.
+- **Round QR codes.** The PayPal code and the Transfers code are drawn as
+  dots on a white circle that fits the middle of the ring.
 
 ### Fixed
 

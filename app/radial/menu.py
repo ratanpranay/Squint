@@ -241,24 +241,11 @@ class RadialMenu:
                                    smooth=True, tags="ring")
 
     def _draw_qr(self):
-        """The QR code fills the middle of the ring."""
+        """A round QR code (dots on a white disc) fills the middle of the
+        ring, inside the tools."""
         from . import qr
-        c, s, cx, cy = self.canvas, self.s, self.cx, self.cy
-        side = 148 * s
-        x0, y0 = cx - side / 2, cy - side / 2
-        c.create_rectangle(x0 - 6 * s, y0 - 6 * s, x0 + side + 6 * s,
-                           y0 + side + 6 * s, fill="#FFFFFF", outline="",
-                           tags="ring")
-        rows = qr.encode(self.hub_qr)
-        n = len(rows) + 2
-        cell = side / float(n)
-        for ry, row in enumerate(rows):
-            for rx, on in enumerate(row):
-                if on:
-                    x = x0 + (rx + 1) * cell
-                    y = y0 + (ry + 1) * cell
-                    c.create_rectangle(x, y, x + cell + 0.4, y + cell + 0.4,
-                                       fill="#000000", width=0, tags="ring")
+        qr.draw_round(self.canvas, self.hub_qr, self.cx, self.cy,
+                      104 * self.s, tags="ring")
         self.heart_hit = None
 
     def set_qr(self, url):
@@ -464,8 +451,8 @@ class RadialMenu:
 
     def _click(self, e):
         if self.view == "support":
-            half = 80 * self.s
-            if abs(e.x - self.cx) <= half and abs(e.y - self.cy) <= half:
+            if (e.x - self.cx) ** 2 + (e.y - self.cy) ** 2 <= \
+                    (104 * self.s) ** 2:
                 self.idle()
                 return
         if self._on_heart(e.x, e.y):

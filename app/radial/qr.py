@@ -286,3 +286,84 @@ def draw(canvas, text, x, y, size, dark="#000000", light="#FFFFFF"):
                 y0 = y + (r + 4) * cell
                 canvas.create_rectangle(x0, y0, x0 + cell + 0.5,
                                         y0 + cell + 0.5, fill=dark, width=0)
+
+
+# -- the round style -------------------------------------------------------
+#
+# Dots instead of squares, rounded corner "eyes", on a white disc. Scanners
+# read the centres of modules, so round dots work as well as squares; the
+# disc is sized so the code keeps at least two modules of quiet margin at
+# its corners.
+
+EYE_INNER = "#2F6FEB"
+
+
+def round_shapes(text, cx, cy, radius):
+    """What to draw for a round code centred at (cx, cy) on a white disc of
+    `radius`: a list of ("disc"|"dot"|"rrect", geometry, colour) items."""
+    rows = encode(text)
+    n = len(rows)
+    # Square inscribed in the disc, less a margin of two modules.
+    side = 2 * radius / (2 ** 0.5)
+    cell = side / (n + 2.0)
+    side = cell * n
+    x0, y0 = cx - side / 2.0, cy - side / 2.0
+    eyes = ((0, 0), (n - 7, 0), (0, n - 7))
+
+    def in_eye(r, c):
+        return any(er <= r < er + 7 and ec <= c < ec + 7 for ec, er in eyes)
+
+    out = [("disc", (cx - radius, cy - radius, cx + radius, cy + radius),
+            "#FFFFFF")]
+    dot = cell * 0.46
+    for r, row in enumerate(rows):
+        for c, on in enumerate(row):
+            if on and not in_eye(r, c):
+                mx, my = x0 + (c + 0.5) * cell, y0 + (r + 0.5) * cell
+                out.append(("dot", (mx - dot, my - dot, mx + dot, my + dot),
+                            "#000000"))
+    for ec, er in eyes:
+        ex, ey = x0 + ec * cell, y0 + er * cell
+        out.append(("rrect", (ex, ey, ex + 7 * cell, ey + 7 * cell,
+                              2.2 * cell), "#000000"))
+        out.append(("rrect", (ex + cell, ey + cell, ex + 6 * cell,
+                              ey + 6 * cell, 1.6 * cell), "#FFFFFF"))
+        out.append(("rrect", (ex + 2 * cell, ey + 2 * cell, ex + 5 * cell,
+                              ey + 5 * cell, 1.0 * cell), EYE_INNER))
+    return out
+
+
+def _rrect_points(x0, y0, x1, y1, r):
+    import math
+    pts = []
+    for (cx, cy, a0) in ((x1 - r, y0 + r, -90), (x1 - r, y1 - r, 0),
+                         (x0 + r, y1 - r, 90), (x0 + r, y0 + r, 180)):
+        for k in range(7):
+            a = math.radians(a0 + k * 15)
+            pts += [cx + r * math.cos(a), cy + r * math.sin(a)]
+    return pts
+
+
+def draw_round(canvas, text, cx, cy, radius, tags=()):
+    for kind, geo, colour in round_shapes(text, cx, cy, radius):
+        if kind == "disc":
+            canvas.create_oval(*geo, fill=colour, outline="", tags=tags)
+        elif kind == "dot":
+            canvas.create_oval(*geo, fill=colour, outline="", tags=tags)
+        else:
+            canvas.create_polygon(_rrect_points(*geo), fill=colour,
+                                  outline="", tags=tags)
+
+
+def render_round(text, size=600, background="#181B22"):
+    """The same round code as a PIL image (for checking it scans)."""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (size, size), background)
+    d = ImageDraw.Draw(img)
+    for kind, geo, colour in round_shapes(text, size / 2.0, size / 2.0,
+                                          size * 0.45):
+        if kind in ("disc", "dot"):
+            d.ellipse(geo, fill=colour)
+        else:
+            d.polygon(_rrect_points(*geo), fill=colour)
+    return img
