@@ -1,4 +1,4 @@
-Squint 1.55.2
+Squint 1.55.3
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,17 @@ was wrong, not only that it was.
 
 
 
+
+1.55.3
+
+  - Camera refresh on a Mac is a /bin/bash script now, not a Python helper
+    run from inside the bundle being replaced, and it no longer depends on
+    mac_bundle.bundles() finding the app. Same steps as check.command:
+    wait for the pid (kill after 20 s), .venv python tools/make_app.py,
+    swap the running bundle (NSBundle.mainBundle path, so /Applications
+    too) with a rollback, refresh ~/Applications, open it. Logged to
+    launch.log. Squint also forces its own exit 3 s after quit().
+---
 
 1.55.2
 
