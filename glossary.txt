@@ -1,0 +1,127 @@
+# Squint glossary
+#
+# One rule per line:      term = replacement
+# To leave a term alone:  term
+#
+# Terms are matched in the text before it is translated, so they work with
+# every engine. Lines starting with # are ignored.
+
+宝马 = BMW
+奔驰 = Mercedes-Benz
+大众 = Volkswagen
+比亚迪 = BYD
+实拍 = real photos of
+试驾 = test drive
+预售 = pre-sale
+预订 = pre-order
+续航 = range
+
+# ---------------------------------------------------------------------
+# Rules below name the language they belong to, as "de:", "fr:", "zh:".
+# A rule without a language applies to every language, which is right for
+# a brand name and wrong for an ordinary word: "Art" is German for "type"
+# and English for art. Language-specific rules are used only when the
+# source language is known — set it in Settings, or leave Detect and they
+# are simply skipped.
+#
+# These are the words a translation engine gets wrong in a table, where a
+# cell is one word with no sentence around it to explain it. Every one of
+# them was seen going wrong on a real document.
+
+# German — invoices, statements, forms
+de: Menge = Quantity
+de: Betrag netto = Net amount
+de: Betrag brutto = Gross amount
+de: Preis netto = Net price
+de: Eingang = Received
+de: Fällig am = Due
+de: Zeitraum = Period
+de: Verbrauch = Consumption
+de: Zählerstand = Meter reading
+de: Zählernummer = Meter number
+de: Ablesezeitraum = Reading period
+de: Anfangsstand = Opening reading
+de: Endstand = Closing reading
+de: Arbeitspreis = Unit price
+de: Grundpreis = Standing charge
+de: Abschlag = Instalment
+de: Lastschrift = Direct debit
+de: Überweisung = Bank transfer
+de: Guthaben = Credit
+de: gering = low
+de: mittel = medium
+de: hoch = high
+
+# French — menus and bills
+fr: Carte du soir = Evening menu
+fr: Plats = Main courses
+fr: Entrées = Starters
+fr: Addition = Bill
+fr: Ouverture = Opening hours
+fr: dont TVA = of which VAT
+
+# Chinese — notices and tables
+zh: 影响范围 = Scope of impact
+zh: 负责人 = Person responsible
+zh: 停机时间 = Downtime
+zh: 系统名称 = System name
+
+# ---------------------------------------------------------------------
+# Chinese — car marques whose names are ordinary words
+#
+# No language tag on these, and that is deliberate. The tag exists for
+# terms that mean different things in different languages; a name written
+# in Chinese characters can only be Chinese, so it is safe everywhere and
+# works whether or not the source language was set.
+#
+# These are the ones an engine gets wrong every time, because there is
+# nothing about them that looks like a name. 享界 is "enjoy" and
+# "boundary", and that is what comes back: "Enjoy G9". The marque is
+# Stelato. Seen on a real newsletter, along with "Premium V800" for a
+# Maextro and "Titanium 9" for a Ti.
+#
+# Rules of your own do NOT belong in this file: it is replaced every
+# time the app updates. There is a second glossary next to your
+# settings that an update never touches, and a rule there beats the
+# rule here for the same term. Settings shows you where it is.
+问界 = AITO
+智界 = Luxeed
+享界 = Stelato
+尊界 = Maextro
+尚界 = SAIC
+鸿蒙智行 = HIMA
+方程豹 = Fangchengbao
+腾势 = Denza
+仰望 = Yangwang
+埃安 = Aion
+昊铂 = Hyptec
+极氪 = Zeekr
+领克 = Lynk & Co
+理想 = Li Auto
+蔚来 = NIO
+小鹏 = XPeng
+零跑 = Leapmotor
+哪吒 = Neta
+岚图 = Voyah
+奕派 = eπ
+猛士 = Mengshi
+东风 = Dongfeng
+广汽 = GAC
+上汽 = SAIC
+一汽 = FAW
+长安 = Changan
+长城 = Great Wall
+吉利 = Geely
+奇瑞 = Chery
+星途 = Exeed
+捷途 = Jetour
+魏牌 = Wey
+坦克 = Tank
+哈弗 = Haval
+欧拉 = Ora
+极狐 = Arcfox
+智己 = IM Motors
+飞凡 = Rising Auto
+深蓝 = Deepal
+阿维塔 = Avatr
+小米 = Xiaomi

@@ -1,0 +1,58 @@
+# Push a tag like v1.50.0 and this publishes the release by itself:
+#
+#   Squint.zip + version.json   what the in-app updater downloads
+#   Squint-Setup.exe            the one-time installer for new users
+#
+# Existing users never need the exe again: the app reads version.json from
+# the latest release and replaces its own code. Nobody has to hand out files.
+#
+# The installer is built on Linux on purpose: tools/make_installer.py puts
+# Windows' own embeddable Python and Windows wheels into it with uv, and
+# NSIS packs it. No Windows machine is involved.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q nsis
+          pip install uv
+
+      - name: Update package (Squint.zip, version.json)
+        run: python tools/make_release.py --out dist
+
+      - name: Installer (Squint-Setup.exe)
+        run: |
+          python tools/make_installer.py
+          cp dist-installer/Squint-Setup-*.exe dist-installer/Squint-Setup.exe
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          gh release create "$TAG" \
+            --title "Squint $VERSION" \
+            --notes-file dist/RELEASE_NOTES.md \
+            --latest \
+            dist/Squint.zip dist/version.json \
+            dist-installer/Squint-Setup.exe \
+            "dist-installer/Squint-Setup-$VERSION.exe"

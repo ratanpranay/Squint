@@ -1,0 +1,13 @@
+# Optional: translation that runs on this machine with no internet.
+#
+# Only worth installing if you actually need to work offline. It brings
+# in PyTorch and spaCy by way of stanza - several gigabytes - because
+# that is what argostranslate depends on. Everything else in Squint works
+# without it.
+#
+# Install with:
+#     .venv\Scripts\python -m pip install -r requirements-offline.txt
+#
+# Install somewhere with a SHORT path (C:\Squint, not a deep Documents
+# folder) or Windows will refuse partway through.
+argostranslate>=1.9

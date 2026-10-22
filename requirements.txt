@@ -1,0 +1,45 @@
+pillow>=10.2
+mss>=9.0
+pytesseract>=0.3.10
+deep-translator>=1.11.4
+pystray>=0.19.5
+PyMuPDF>=1.24
+python-docx>=1.1
+reportlab>=4.1
+langdetect>=1.0.9
+certifi>=2024.2
+# Drag and drop. Tk has none of its own: tkdnd is a Tcl extension, and
+# this package is how it gets onto the machine. It was installed by the
+# Mac's setup script and by nothing on Windows, so the box on the home
+# page said "Drag & drop an image" to every Windows user and did nothing
+# at all when they did. It belongs here, where both installers look, and
+# where the updater notices it is new and installs it on an existing
+# machine rather than only on a fresh one.
+tkinterdnd2>=0.4
+# The offline engine is NOT installed by default any more.
+#
+# argostranslate depends on stanza, which depends on PyTorch. Installing
+# it pulls several gigabytes of machine-learning framework onto the
+# machine so that the offline engine can split sentences - and on Windows
+# it produced paths deep enough to break the installer outright
+# ("filename or extension is too long").
+#
+# Not listed here for macOS either. setup.command installs it itself, as
+# it always has. Listed here, the app's own package check would find it
+# missing on a Mac installed from the disk image - which leaves it out for
+# the same reason - and download those gigabytes in the background on
+# first launch. For both systems, see requirements-offline.txt.
+# Windows only: the built-in OCR engine (Windows.Media.Ocr). Far better
+# than Tesseract on screen text, and on Chinese especially, which is why
+# it leads on Windows the way Apple Vision does on a Mac.
+winsdk>=1.0.0b10; sys_platform == "win32"
+# Windows only: PaddleOCR (Baidu, Apache 2.0) through RapidOCR on ONNX
+# Runtime. Reads Chinese, Japanese and English with no Windows language
+# pack, no key and no internet, and Korean with a model fetched on first
+# use. Windows OCR is asked first; this before the cloud. About 200 MB
+# installed, most of it OpenCV and ONNX Runtime.
+rapidocr>=3.9; sys_platform == "win32"
+onnxruntime>=1.20; sys_platform == "win32"
+# macOS only: Apple Vision, for the same reason.
+pyobjc-framework-Vision>=10.1; sys_platform == "darwin"
+pyobjc-framework-Quartz>=10.1; sys_platform == "darwin"
