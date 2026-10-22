@@ -21,8 +21,8 @@ BrandingText "Squint ${VERSION}"
 !include "MUI2.nsh"
 !define MUI_ICON "${STAGE}/assets/icon.ico"
 !define MUI_UNICON "${STAGE}/assets/icon.ico"
-!define MUI_FINISHPAGE_RUN "$INSTDIR\.venv\pythonw.exe"
-!define MUI_FINISHPAGE_RUN_PARAMETERS '"$INSTDIR\run_app.py"'
+!define MUI_FINISHPAGE_RUN
+!define MUI_FINISHPAGE_RUN_FUNCTION StartSquint
 !define MUI_FINISHPAGE_RUN_TEXT "Start Squint"
 
 !insertmacro MUI_PAGE_DIRECTORY
@@ -31,6 +31,10 @@ BrandingText "Squint ${VERSION}"
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
+
+Function StartSquint
+  Exec '"$INSTDIR\.venv\pythonw.exe" "$INSTDIR\run_app.py"'
+FunctionEnd
 
 !define UNINST "Software\Microsoft\Windows\CurrentVersion\Uninstall\Squint"
 
