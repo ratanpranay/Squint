@@ -129,17 +129,20 @@ class CalendarPanel:
         nav = tk.Frame(self.body, bg=common.PANEL)
         nav.pack(fill="x")
         tk.Label(nav, text=month.strftime("%B %Y"), bg=common.PANEL,
-                 fg=common.TEXT, font=m.f(12, True)).pack(side="left")
+                 fg=common.TEXT, font=m.f(15, True)).pack(side="left")
         for text, step in (("›", 1), ("Today", 0), ("‹", -1)):
             b = m.button(nav, text, lambda st=step: self.go(st))
-            b.configure(padx=int(8 * s), pady=int(2 * s))
+            b.configure(padx=int(10 * s), pady=int(3 * s), font=m.f(12))
             b.pack(side="right", padx=(int(3 * s), 0))
 
         grid = tk.Frame(self.body, bg=common.PANEL)
-        grid.pack(pady=(int(6 * s), 0))
-        for i, name in enumerate("MTWTFSS"):
+        grid.pack(fill="x", pady=(int(8 * s), 0))
+        for i, name in enumerate(("Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+                                  "Sun")):
+            grid.columnconfigure(i, weight=1, uniform="day")
             tk.Label(grid, text=name, bg=common.PANEL, fg=common.MUTED,
-                     font=m.f(10, True), width=4).grid(row=0, column=i)
+                     font=m.f(11, True)).grid(row=0, column=i, sticky="we",
+                                              pady=(0, int(4 * s)))
         weeks = calendar.Calendar(0).monthdatescalendar(month.year,
                                                         month.month)
         for r, week in enumerate(weeks):
@@ -154,33 +157,33 @@ class CalendarPanel:
                     bg, fg = common.PANEL, common.TEXT if inside else "#5F6676"
                 cell = tk.Label(grid, text=str(d.day) + ("\n•" if marked
                                                           else "\n "),
-                                bg=bg, fg=fg, font=m.f(11), width=4,
-                                cursor="hand2", pady=int(1 * s))
-                cell.grid(row=r + 1, column=c, padx=1, pady=1)
+                                bg=bg, fg=fg, font=m.f(14), cursor="hand2",
+                                pady=int(2 * s))
+                cell.grid(row=r + 1, column=c, padx=1, pady=1, sticky="nsew")
                 cell.bind("<Button-1>", lambda _e, d=d: self.pick(d))
 
         tk.Frame(self.body, bg=common.LINE, height=1).pack(
             fill="x", pady=(int(8 * s), int(6 * s)))
         tk.Label(self.body, text=day.strftime("%A, %d %B"), bg=common.PANEL,
-                 fg=common.TEXT, font=m.f(11, True), anchor="w").pack(
+                 fg=common.TEXT, font=m.f(14, True), anchor="w").pack(
             fill="x")
         items = data.get(day.isoformat(), [])
         if not items:
             tk.Label(self.body, text="Nothing planned.", bg=common.PANEL,
-                     fg=common.MUTED, font=m.f(10), anchor="w").pack(fill="x")
+                     fg=common.MUTED, font=m.f(12), anchor="w").pack(fill="x")
         for i, item in enumerate(items):
             row = tk.Frame(self.body, bg=common.ROW)
             row.pack(fill="x", pady=(int(3 * s), 0))
             tk.Label(row, text=item.get("time") or "—", bg=common.ROW,
-                     fg=common.MUTED, font=m.f(10), width=6,
+                     fg=common.MUTED, font=m.f(12), width=6,
                      anchor="w").pack(side="left", padx=(int(6 * s), 0))
             tk.Label(row, text=item.get("text", ""), bg=common.ROW,
-                     fg=common.TEXT, font=m.f(11), anchor="w",
+                     fg=common.TEXT, font=m.f(13), anchor="w",
                      justify="left",
-                     wraplength=m.panel_width() - int(110 * s)).pack(
+                     wraplength=m.panel_width() - int(140 * s)).pack(
                 side="left", fill="x", expand=True, pady=int(4 * s))
             delete = tk.Label(row, text="Delete", bg=common.ROW,
-                              fg="#F28B82", font=m.f(10), cursor="hand2",
+                              fg="#F28B82", font=m.f(12), cursor="hand2",
                               padx=int(8 * s))
             delete.pack(side="right")
             delete.bind("<Button-1>", lambda _e, i=i: self.remove(i))
@@ -192,20 +195,20 @@ class CalendarPanel:
         t = tk.Entry(add_row, textvariable=self.time_var, width=5,
                      bg=common.ROW, fg=common.TEXT, relief="flat",
                      insertbackground=common.TEXT, highlightthickness=0,
-                     font=m.f(11))
+                     font=m.f(13))
         t.pack(side="left", ipady=int(4 * s))
         e = tk.Entry(add_row, textvariable=self.text_var, bg=common.ROW,
                      fg=common.TEXT, relief="flat", highlightthickness=0,
-                     insertbackground=common.TEXT, font=m.f(11))
+                     insertbackground=common.TEXT, font=m.f(13))
         e.pack(side="left", fill="x", expand=True, padx=int(4 * s),
                ipady=int(4 * s))
         e.bind("<Return>", self.add)
         b = m.button(add_row, "+ Add", self.add, primary=True)
-        b.configure(padx=int(10 * s), pady=int(3 * s))
+        b.configure(padx=int(12 * s), pady=int(4 * s), font=m.f(12))
         b.pack(side="left")
         self.hint = tk.Label(self.body, text="Time optional (9:30). Timed "
                              "items remind you.", bg=common.PANEL,
-                             fg=common.MUTED, font=m.f(9), anchor="w")
+                             fg=common.MUTED, font=m.f(11), anchor="w")
         self.hint.pack(fill="x", pady=(int(3 * s), 0))
 
         self.clocks()
@@ -217,7 +220,7 @@ class CalendarPanel:
         tk.Frame(self.body, bg=common.LINE, height=1).pack(
             fill="x", pady=(int(8 * s), int(6 * s)))
         tk.Label(self.body, text="World clock  ·  click a city to change it",
-                 bg=common.PANEL, fg=common.MUTED, font=m.f(9),
+                 bg=common.PANEL, fg=common.MUTED, font=m.f(11),
                  anchor="w").pack(fill="x")
         grid = tk.Frame(self.body, bg=common.PANEL)
         grid.pack(fill="x", pady=(int(4 * s), 0))
@@ -231,10 +234,10 @@ class CalendarPanel:
                       padx=(0 if slot % 2 == 0 else int(3 * s), 0),
                       pady=(0, int(3 * s)))
             city = tk.Label(tile, text=name, bg=common.ROW, fg=common.MUTED,
-                            font=m.f(10), anchor="w")
+                            font=m.f(12), anchor="w")
             city.pack(fill="x")
             time_l = tk.Label(tile, text="", bg=common.ROW, fg="#FFFFFF",
-                              font=m.f(16, True), anchor="w")
+                              font=m.f(21, True), anchor="w")
             time_l.pack(fill="x")
             for w in (tile, city, time_l):
                 w.bind("<Button-1>", lambda _e, sl=slot: self.pick_city(sl))

@@ -43,7 +43,7 @@ class RadialMenu:
         self.front = front
         self.support_url = support_url
         self.shortcut = shortcut
-        self.selected = 0
+        self.selected = None        # nothing until the mouse picks a tool
         self.closed = False
         self.pinned = False
         self.card = None
@@ -85,7 +85,8 @@ class RadialMenu:
 
         margin = 215 * s
         self.cx = min(max(px - left, margin), width - margin)
-        self.cy = min(max(py - top, margin), height - margin)
+        # Room above the ring for the support line.
+        self.cy = min(max(py - top, margin + 40 * s), height - margin)
 
         families = set(tkfont.families(root))
         self.icon_font = next((f for f in ("Segoe Fluent Icons",
@@ -101,7 +102,7 @@ class RadialMenu:
             0, 0, window=self.panel_outer, anchor="nw")
 
         self._draw_ring()
-        self.select(0)
+        self.idle()
 
         c = self.canvas
         c.bind("<Motion>", self._motion)
@@ -132,8 +133,9 @@ class RadialMenu:
 
     def panel_width(self):
         """The content width every view is laid out to."""
-        wide = self.tools[self.selected].get("wide")
-        return int((330 if wide else 290) * self.s)
+        wide = self.selected is not None and \
+            self.tools[self.selected].get("wide")
+        return int((420 if wide else 290) * self.s)
 
     def _item_xy(self, i):
         a = math.radians(-90 + i * 40)
@@ -172,9 +174,22 @@ class RadialMenu:
             self._draw_qr()
         else:
             self._draw_hub()
-        c.create_text(cx, cy + r + 22 * s,
-                      text="1–9 picks a tool · letters pick an action · "
-                           "Esc goes back",
+        if self.view == "support":
+            hint = "Click the code to go back · Esc closes"
+            c.create_text(cx, cy - r - 24 * s,
+                          text="♥  Support Squint if it saves you time  ·  "
+                               "Open PayPal",
+                          fill="#FFFFFF", font=self.f(13, True),
+                          tags=("ring", "support_line"))
+            c.tag_bind("support_line", "<Button-1>",
+                       lambda _e: self._open_support())
+            c.tag_bind("support_line", "<Enter>",
+                       lambda _e: c.configure(cursor="hand2"))
+            c.tag_bind("support_line", "<Leave>",
+                       lambda _e: c.configure(cursor=""))
+        else:
+            hint = "1–9 picks a tool · letters pick an action · Esc goes back"
+        c.create_text(cx, cy + r + 22 * s, text=hint,
                       fill="#C9CED8", font=self.f(11), tags="ring")
         c.tag_raise(self.panel_item)
 
@@ -188,8 +203,12 @@ class RadialMenu:
         self.heart_hit = (hx, hy, 14 * s)
         self._heart(hx, hy, (9.5 if self.heart_hover else 8) * s,
                     HEART if self.heart_hover else "#C8546A")
-        title = "Support Squint" if self.heart_hover else \
-            self.tools[self.selected]["full"]
+        if self.heart_hover:
+            title = "Support Squint"
+        elif self.selected is None:
+            title = "Squint"
+        else:
+            title = self.tools[self.selected]["full"]
         c.create_text(cx, cy + 2 * s, text=title, fill="#FFFFFF",
                       font=self.f(14, True), width=110 * s, justify="center",
                       tags="ring")
@@ -263,6 +282,9 @@ class RadialMenu:
     def relayout(self):
         """Fit the panel to what is in it, beside the selected tool."""
         if self.closed:
+            return
+        if self.selected is None:
+            self.canvas.itemconfigure(self.panel_item, state="hidden")
             return
         self.panel_outer.update_idletasks()
         w = self.panel_outer.winfo_reqwidth()
@@ -376,7 +398,19 @@ class RadialMenu:
         if self.card is not None:
             self.card.cancel()
             return
-        self.select(self.selected)
+        if self.selected is None:
+            self.idle()
+        else:
+            self.select(self.selected)
+
+    def idle(self):
+        """Just the ring: no tool picked, no panel."""
+        self.clear_panel()
+        self.selected = None
+        self.pinned = False
+        self.view = "idle"
+        self.canvas.itemconfigure(self.panel_item, state="hidden")
+        self._draw_ring()
 
     def select(self, i):
         self.selected = i
@@ -416,6 +450,11 @@ class RadialMenu:
             self.select(i)
 
     def _click(self, e):
+        if self.view == "support":
+            half = 80 * self.s
+            if abs(e.x - self.cx) <= half and abs(e.y - self.cy) <= half:
+                self.idle()
+                return
         if self._on_heart(e.x, e.y):
             self.support()
             return
@@ -441,8 +480,12 @@ class RadialMenu:
         if ch and ch in "123456789":
             self.select(int(ch) - 1)
             return
+        if self.selected is None:
+            if e.keysym in ("Left", "Up", "Right", "Down", "Tab"):
+                self.select(0)
+            return
         rows = self.tools[self.selected]["rows"]
-        if e.keysym in ("Return", "KP_Enter") and rows:
+        if e.keysym in ("Return", "KP_Enter") and rows:  # noqa
             self.run_action(0)
             return
         if ch and "a" <= ch <= "z" and ord(ch) - 97 < len(rows):
@@ -454,7 +497,7 @@ class RadialMenu:
             self.select((self.selected + 1) % len(self.tools))
 
     def _escape(self, _e=None):
-        if self.view in ("list", "hover", "hidden"):
+        if self.view in ("list", "hover", "hidden", "idle", "support"):
             self.close()
         else:
             self.back()
@@ -530,37 +573,21 @@ class RadialMenu:
     # -- doing it ------------------------------------------------------------
 
     def support(self):
-        """♥: the PayPal code in the middle of the ring, to scan with a
-        phone, and a button to open it on this computer."""
+        """♥: the PayPal code in the middle of the ring and one line above
+        it. Clicking the code brings the heart back."""
+        self.clear_panel()
+        self.selected = None
+        self.pinned = True
+        self.view = "support"
+        self.canvas.itemconfigure(self.panel_item, state="hidden")
+        self.set_qr(self.support_url)
+
+    def _open_support(self):
+        import webbrowser
         url = self.support_url
-
-        def open_page():
-            import webbrowser
-            self.close()
+        self.close()
+        if url:
             webbrowser.open(url)
-
-        def build(frame):
-            s = self.s
-            self.set_qr(url)
-            self.header(frame, "Support Squint  ♥", close=True)
-            tk.Label(frame, text="Squint is free. If it saves you time, a "
-                     "small tip keeps it going.", bg=common.PANEL,
-                     fg=common.TEXT, font=self.f(11), anchor="w",
-                     justify="left", wraplength=self.panel_width()).pack(
-                fill="x")
-            tk.Label(frame, text="Scan the code in the circle with your "
-                     "phone's camera to pay with PayPal, or open PayPal "
-                     "here.", bg=common.PANEL, fg=common.MUTED,
-                     font=self.f(10), anchor="w", justify="left",
-                     wraplength=self.panel_width()).pack(
-                fill="x", pady=(int(6 * s), 0))
-            row = tk.Frame(frame, bg=common.PANEL)
-            row.pack(fill="x", pady=(int(12 * s), 0))
-            self.button(row, "Close", self.back).pack(side="right")
-            self.button(row, "Open PayPal", open_page, primary=True).pack(
-                side="right", padx=(0, int(6 * s)))
-
-        self.show_view(build, pinned=True, name="support")
 
     def run_action(self, j):
         tool = self.tools[self.selected]

@@ -1,4 +1,4 @@
-Squint 1.53.0
+Squint 1.54.0
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,17 @@ was wrong, not only that it was.
 
 
 
+
+1.54.0
+
+  - menu: selected starts as None (view "idle", panel hidden); keys and
+    layout guard for it. Support is its own view: QR in the hub, a
+    clickable line above the ring, panel hidden; a click on the QR returns
+    to idle. Ring centre moved down 40 px when near the top edge to leave
+    room for that line.
+  - "Send" tool renamed "Transfers"; calendar panel 420 px wide, days on a
+    uniform 7-column grid, larger fonts throughout.
+---
 
 1.53.0
 

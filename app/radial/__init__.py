@@ -82,7 +82,7 @@ def _tools():
               ("Extract", zipper("extract"), True, PANEL)],
              "Uses what is selected in Explorer. "
              "Saved in Downloads\\Squint\\Zip."),
-        tool("send", "Send", "Local send", "",
+        tool("send", "Transfers", "Transfers", "",
              [("Send to nearby device", send.nearby_cmd, True, PANEL),
               ("Receive", send.receive_cmd, False, PANEL),
               ("Phone via QR", send.phone_cmd, True, PANEL)],

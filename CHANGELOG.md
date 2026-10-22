@@ -20,6 +20,21 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## 1.54.0 — 2026-10-22
+
+### Changed
+
+- **The ring opens on its own.** No tool's list is open until the mouse
+  points at a tool.
+- **Send is now called Transfers.**
+- **Support line above the ring.** The ♥ shows the PayPal code in the
+  middle of the ring and one line above it: "Support Squint if it saves you
+  time". Clicking the code brings the ♥ back; clicking the line opens
+  PayPal.
+- **Bigger calendar.** Wider, with larger dates, agenda and world clocks.
+
+---
+
 ## 1.53.0 — 2026-10-22
 
 ### Changed
