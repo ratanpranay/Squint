@@ -20,6 +20,26 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## 1.55.1 — 2026-10-22
+
+### Fixed
+
+- **Mac: Squint's window came up with the tools menu**, even when it was
+  minimized or behind other windows. The ring now opens on its own, and
+  the app you were in stays in front.
+- **Mac: pointing at a tool did nothing**; each one had to be clicked.
+  Pointing works now, as on Windows.
+- **Mac: buttons in the panel were unreadable** (white on white). They are
+  drawn the same as on Windows now.
+
+### Changed
+
+- **Mac: Selfie check shows the camera in the panel**, like on Windows,
+  instead of opening Photo Booth. The first time it downloads camera
+  support (about 40 MB) and macOS asks once to allow the camera.
+
+---
+
 ## 1.55.0 — 2026-10-22
 
 ### Added

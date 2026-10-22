@@ -197,7 +197,8 @@ class Card:
                                     fg="#FFFFFF" if on else common.TEXT)
 
                 for i, (key, text) in enumerate(field["options"]):
-                    b = tk.Button(row, text=text, relief="flat", bd=0,
+                    b = (common.FlatButton if common.IS_MAC
+                         else tk.Button)(row, text=text, relief="flat", bd=0,
                                   highlightthickness=0, font=self._f(10),
                                   padx=int(8 * s), pady=int(5 * s),
                                   cursor="hand2",

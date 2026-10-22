@@ -531,7 +531,14 @@ class RadialMenu:
 
     def _take_focus(self):
         if IS_MAC:
+            # No focus_force here: on a Mac it activates Squint, and that
+            # brings Squint's own window up with the ring.
             self._mac_front()
+            try:
+                self.win.lift()
+            except tk.TclError:
+                pass
+            return
         try:
             self.win.lift()
             self.win.focus_force()
@@ -545,19 +552,31 @@ class RadialMenu:
             pass
 
     def _mac_front(self):
-        """Make Squint the active app, so the ring gets the keyboard, and
-        watch for Escape and for another app coming to the front."""
+        """On a Mac the ring is shown without making Squint the active app:
+        activating it would bring Squint's own window forward too. So the
+        mouse is followed here rather than through events (a borderless
+        window of an inactive app gets none), and Escape is read straight
+        from the keyboard."""
         try:
-            from AppKit import NSApplication
-            NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+            from AppKit import NSWorkspace
+            import os
+            app = NSWorkspace.sharedWorkspace().frontmostApplication()
+            pid = int(app.processIdentifier()) if app is not None else 0
+            self._mac_start_front = None if pid == os.getpid() else pid
         except Exception:
-            pass
-        self.win.after(500, self._mac_watch)
+            self._mac_start_front = None
+        self._hover_widget = None
+        self._last_pointer = None
+        self.win.after(200, self._mac_watch)
 
     def _mac_watch(self):
         if self.closed:
             return
         try:
+            px, py = self.win.winfo_pointerxy()
+            if (px, py) != self._last_pointer:
+                self._last_pointer = (px, py)
+                self._mac_hover(px, py)
             from .. import platform_util
             if platform_util.key_is_down("escape") and not self._typing():
                 if not getattr(self, "_esc_down", False):
@@ -567,16 +586,54 @@ class RadialMenu:
                         return
             else:
                 self._esc_down = False
+            # Another app coming to the front (a click outside the ring)
+            # closes it, as on Windows.
             from AppKit import NSWorkspace
             import os
             front = NSWorkspace.sharedWorkspace().frontmostApplication()
-            if front is not None and int(front.processIdentifier()) != \
-                    os.getpid() and not self.pinned:
+            pid = int(front.processIdentifier()) if front is not None else 0
+            if pid and pid != os.getpid() and \
+                    pid != self._mac_start_front and not self.pinned:
                 self.close()
                 return
+        except Exception as exc:          # noqa: BLE001 - keep watching
+            common.log("mac watch: %r" % exc)
+        self.win.after(50, self._mac_watch)
+
+    def _mac_hover(self, px, py):
+        """What <Motion>, <Enter> and <Leave> would have done."""
+        x, y = px - self.mon[0], py - self.mon[1]
+
+        class Event:
+            pass
+
+        e = Event()
+        e.x, e.y = x, y
+        self._motion(e)
+        try:
+            widget = self.win.winfo_containing(px, py)
+        except (KeyError, tk.TclError):
+            widget = None
+        if widget is not self._hover_widget:
+            old, self._hover_widget = self._hover_widget, widget
+            for w, seq in ((old, "<Leave>"), (widget, "<Enter>")):
+                if w is not None and w is not self.canvas:
+                    try:
+                        w.event_generate(seq)
+                    except tk.TclError:
+                        pass
+
+    def _mac_hand_back(self):
+        """If a click made Squint the active app, give the front back to
+        the app that was there, so Squint's window does not stay on top."""
+        try:
+            from AppKit import NSRunningApplication
+            if NSRunningApplication.currentApplication().isActive() and \
+                    getattr(self, "_mac_start_front", None):
+                from .. import platform_util
+                platform_util.bring_back(self._mac_start_front)
         except Exception:
             pass
-        self.win.after(120, self._mac_watch)
 
     def _watch_front(self):
         """Close once another window comes to the front, unless the user is
@@ -691,6 +748,8 @@ class RadialMenu:
             return
         self.clear_panel()
         self.closed = True
+        if IS_MAC:
+            self._mac_hand_back()
         RadialMenu.current = None
         try:
             self.win.destroy()

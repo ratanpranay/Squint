@@ -485,8 +485,55 @@ def _center(win):
     win.focus_force()
 
 
+class FlatButton(tk.Label):
+    """A button drawn as a label. On a Mac, tk.Button is the system's own
+    white button and ignores the colours given to it, which left white text
+    on white. This looks the same everywhere and behaves like a button."""
+
+    def __init__(self, parent, text="", command=None, bg=None, fg=None,
+                 activebackground=None, activeforeground=None, **kw):
+        for k in ("relief", "bd", "highlightthickness", "cursor"):
+            kw.pop(k, None)
+        super().__init__(parent, text=text, bg=bg, fg=fg, cursor="hand2",
+                         **kw)
+        self._command = command
+        self._colours = (bg, fg)
+        self._active = (activebackground or bg, activeforeground or fg)
+        self.bind("<Button-1>", lambda _e: self.invoke())
+        self.bind("<Enter>", lambda _e: self._paint(True))
+        self.bind("<Leave>", lambda _e: self._paint(False))
+
+    def _paint(self, on):
+        if str(self.cget("state")) == "disabled":
+            return
+        bg, fg = self._active if on else self._colours
+        try:
+            super().configure(bg=bg, fg=fg)
+        except tk.TclError:
+            pass
+
+    def configure(self, cnf=None, **kw):
+        if "command" in kw:
+            self._command = kw.pop("command")
+        if "bg" in kw or "fg" in kw:
+            self._colours = (kw.get("bg", self._colours[0]),
+                             kw.get("fg", self._colours[1]))
+        for k in ("relief", "bd", "highlightthickness", "activebackground",
+                  "activeforeground"):
+            kw.pop(k, None)
+        return super().configure(cnf, **kw)
+
+    config = configure
+
+    def invoke(self):
+        if str(self.cget("state")) == "disabled" or self._command is None:
+            return None
+        return self._command()
+
+
 def _button(parent, text, command, primary=False):
-    return tk.Button(parent, text=text, command=command,
+    cls = FlatButton if IS_MAC else tk.Button
+    return cls(parent, text=text, command=command,
                      bg=ACCENT if primary else ROW, fg="#FFFFFF",
                      activebackground=ACCENT, activeforeground="#FFFFFF",
                      relief="flat", bd=0, highlightthickness=0, padx=16, pady=7,

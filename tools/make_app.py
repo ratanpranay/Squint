@@ -268,6 +268,9 @@ def build(destination=None, root=None):
             "Squint uses this to show translations over other apps.",
         "NSScreenCaptureUsageDescription":
             "Squint reads text from the area of the screen you select.",
+        "NSCameraUsageDescription":
+            "Squint shows your camera in Selfie check, only while it is "
+            "open. Nothing is recorded or sent.",
     }
     if has_icon:
         info["CFBundleIconFile"] = "icon"

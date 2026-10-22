@@ -43,3 +43,6 @@ onnxruntime>=1.20; sys_platform == "win32"
 # macOS only: Apple Vision, for the same reason.
 pyobjc-framework-Vision>=10.1; sys_platform == "darwin"
 pyobjc-framework-Quartz>=10.1; sys_platform == "darwin"
+# macOS only: the live camera in the tools menu's Selfie check. On Windows
+# OpenCV already arrives with RapidOCR above.
+opencv-python-headless>=4.8; sys_platform == "darwin"

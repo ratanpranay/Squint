@@ -1,4 +1,4 @@
-Squint 1.55.0
+Squint 1.55.1
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,23 @@ was wrong, not only that it was.
 
 
 
+
+1.55.1
+
+  - Mac ring: no activateIgnoringOtherApps / focus_force on open (they
+    brought Squint's main window up). The pointer is polled every 50 ms
+    and fed to the same hover code, plus synthetic <Enter>/<Leave> for
+    the widget under it - a borderless window of an inactive app gets no
+    motion events. "Another app came to the front" now means a pid other
+    than ours and the one that was in front at open. On close, if a click
+    activated Squint, the previous app is brought back.
+  - common.FlatButton (a Label) for buttons on macOS, where tk.Button is
+    the native white button and ignores bg.
+  - Selfie on Mac: OpenCV headless (requirements, darwin only, or fetched
+    from the panel on first use), AVFoundation backend, retried while the
+    camera permission prompt is up; NSCameraUsageDescription added to the
+    bundle's Info.plist (rebuilt by mac_bundle on update).
+---
 
 1.55.0
 

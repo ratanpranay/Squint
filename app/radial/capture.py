@@ -269,6 +269,9 @@ def selfie(ctrl, menu=None, **_):
         import cv2                         # comes with Squint's OCR engine
     except Exception:
         cv2 = None
+    if cv2 is None and common.IS_MAC and menu is not None:
+        _offer_camera_support(ctrl, menu)
+        return
     if cv2 is None or menu is None:
         _camera_app(ctrl, menu)
         return
@@ -281,11 +284,31 @@ def selfie(ctrl, menu=None, **_):
     def grab():
         cam = None
         try:
-            backend = cv2.CAP_DSHOW if common.IS_WINDOWS else 0
+            if common.IS_WINDOWS:
+                backend = cv2.CAP_DSHOW
+            elif common.IS_MAC:
+                backend = getattr(cv2, "CAP_AVFOUNDATION", 0)
+            else:
+                backend = 0
             cam = cv2.VideoCapture(0, backend)
+            # On a Mac the first try only triggers the permission question;
+            # keep trying while it is on screen.
+            tries = 0
+            while not cam.isOpened() and common.IS_MAC and tries < 30 \
+                    and state["run"]:
+                state["error_soft"] = ("Allow camera access when macOS "
+                                       "asks, then wait a moment.")
+                time.sleep(0.5)
+                cam.release()
+                cam = cv2.VideoCapture(0, backend)
+                tries += 1
+            state["error_soft"] = None
             if not cam.isOpened():
-                state["error"] = "No camera found, or it is in use by " \
-                                 "another app."
+                state["error"] = ("No camera found, or it is in use by "
+                                  "another app." + (
+                                      " On a Mac, allow Squint under System "
+                                      "Settings › Privacy & Security › "
+                                      "Camera." if common.IS_MAC else ""))
                 return
             cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -347,8 +370,12 @@ def selfie(ctrl, menu=None, **_):
                 if not view.winfo_exists():
                     return
                 if state["error"]:
-                    view.configure(text=state["error"], image=blank)
+                    view.configure(text=state["error"], image=blank,
+                                   wraplength=width - 20)
                     return
+                if state.get("error_soft") and state["frame"] is None:
+                    view.configure(text=state["error_soft"],
+                                   wraplength=width - 20)
                 picture = state["frame"]
                 if picture is not None:
                     im = Image.fromarray(picture)
@@ -363,6 +390,40 @@ def selfie(ctrl, menu=None, **_):
         show()
 
     menu.show_view(build, pinned=True, name="selfie")
+
+
+def _offer_camera_support(ctrl, menu):
+    """Mac without OpenCV yet: fetch it once, right here in the panel."""
+    import sys
+    from .card import Card
+    card = Card(ctrl, "Selfie check", None,
+                "Showing the camera here needs a one-time download "
+                "(about 40 MB).", host=menu)
+
+    def start(_values):
+        def work(p):
+            p(None, "Downloading camera support")
+            done = common.run([sys.executable, "-m", "pip", "install",
+                               "--quiet", "--disable-pip-version-check",
+                               "--prefer-binary",
+                               "opencv-python-headless>=4.8"], timeout=900)
+            if done.returncode != 0:
+                raise RuntimeError(done.stdout.decode("utf-8", "replace")
+                                   [-300:] or "the download failed")
+            import importlib
+            importlib.invalidate_caches()
+            import cv2                     # noqa: F401
+            return True
+
+        def finish(_ok):
+            ctrl.root.after(50, lambda: selfie(ctrl, menu=menu))
+            return None
+
+        card.run(work, finish, "Getting camera support…")
+
+    card.form([{"kind": "note", "text": "After that, the live camera shows "
+                "here, mirrored, like on Windows. macOS will ask once to "
+                "allow the camera."}], "Download", start)
 
 
 def _camera_app(ctrl, menu):
