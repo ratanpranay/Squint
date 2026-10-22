@@ -1,4 +1,5 @@
-# Push a tag like v1.50.0 and this publishes the release by itself:
+# Change the version on the first line of VERSION.txt, push, and this
+# publishes the release by itself (tagged v<version>):
 #
 #   Squint.zip + version.json   what the in-app updater downloads
 #   Squint-Setup.exe            the one-time installer for new users
@@ -14,7 +15,9 @@ name: Release
 
 on:
   push:
-    tags: ["v*.*.*"]
+    branches: [main]
+    paths: [VERSION.txt, .github/workflows/release.yml]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -25,31 +28,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Version
+        id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(head -1 VERSION.txt | sed -E 's/^Squint //; s/[[:space:]]+$//')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "v$VERSION is already released - nothing to do."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-python@v5
+        if: steps.v.outputs.skip != '1'
         with:
           python-version: "3.12"
 
       - name: Tools
+        if: steps.v.outputs.skip != '1'
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q nsis
           pip install uv
 
       - name: Update package (Squint.zip, version.json)
+        if: steps.v.outputs.skip != '1'
         run: python tools/make_release.py --out dist
 
       - name: Installer (Squint-Setup.exe)
+        if: steps.v.outputs.skip != '1'
         run: |
           python tools/make_installer.py
           cp dist-installer/Squint-Setup-*.exe dist-installer/Squint-Setup.exe
 
       - name: Publish
+        if: steps.v.outputs.skip != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          VERSION="${TAG#v}"
-          gh release create "$TAG" \
+          VERSION="${{ steps.v.outputs.version }}"
+          gh release create "v$VERSION" --target "$GITHUB_SHA" \
             --title "Squint $VERSION" \
             --notes-file dist/RELEASE_NOTES.md \
             --latest \
