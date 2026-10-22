@@ -50,6 +50,8 @@ class RadialMenu:
         self.card = None
         self.view = None
         self.hub_qr = None
+        self.hub_cam = False      # the camera in the middle (Selfie check)
+        self._cam_photo = None
         self.heart_hover = False
         self._cleanups = []
         self._away = 0
@@ -199,6 +201,8 @@ class RadialMenu:
             self.item_hits.append((x, y, rr))
         if self.hub_qr:
             self._draw_qr()
+        elif self.hub_cam:
+            self._draw_cam()
         else:
             self._draw_hub()
         if self.view == "support":
@@ -275,6 +279,40 @@ class RadialMenu:
                       104 * self.s, tags="ring")
         self.heart_hit = None
 
+    def cam_diameter(self):
+        return int(208 * self.s)
+
+    def _draw_cam(self):
+        """The round camera picture fills the middle of the ring."""
+        c, s, cx, cy = self.canvas, self.s, self.cx, self.cy
+        r = self.cam_diameter() / 2.0
+        c.create_oval(cx - r - 2, cy - r - 2, cx + r + 2, cy + r + 2,
+                      fill="#000000", outline=ITEM_LINE, tags="ring")
+        if self._cam_photo is not None:
+            c.create_image(cx, cy, image=self._cam_photo,
+                           tags=("ring", "hubcam"))
+        else:
+            c.create_text(cx, cy, text="Starting the camera…",
+                          fill=common.MUTED, font=self.f(11),
+                          tags=("ring", "hubcam_text"))
+        self.heart_hit = None
+
+    def set_cam(self, on):
+        self.hub_cam = bool(on)
+        if not on:
+            self._cam_photo = None
+        if not self.closed:
+            self._draw_ring()
+
+    def set_cam_frame(self, photo):
+        """A new picture for the middle, without redrawing the ring."""
+        first = self._cam_photo is None
+        self._cam_photo = photo
+        if first:
+            self._draw_ring()
+        else:
+            self.canvas.itemconfigure("hubcam", image=photo)
+
     def set_qr(self, url):
         self.hub_qr = url
         if not self.closed:
@@ -295,6 +333,8 @@ class RadialMenu:
         self._cleanups = []
         if self.hub_qr:
             self.set_qr(None)
+        if self.hub_cam:
+            self.set_cam(False)
         if self.card is not None and self.card._job is not None:
             # Work still running: it carries on and says when it is done.
             self.card._hidden = True
@@ -466,7 +506,8 @@ class RadialMenu:
 
     def _motion(self, e):
         heart = self._on_heart(e.x, e.y)
-        if heart != self.heart_hover and not self.hub_qr:
+        if heart != self.heart_hover and not self.hub_qr \
+                and not self.hub_cam:
             self.heart_hover = heart
             self._draw_ring()
             self.canvas.configure(cursor="hand2" if heart else "")

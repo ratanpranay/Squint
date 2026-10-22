@@ -332,26 +332,41 @@ def selfie(ctrl, menu=None, **_):
     def stop():
         state["run"] = False
 
+    def round_picture(picture, size):
+        """The middle of the frame, mirrored already, as a circle on the
+        ring's own colour (drawn twice as big and shrunk: smooth edges)."""
+        from PIL import ImageDraw
+        im = Image.fromarray(picture)
+        w, h = im.size
+        side = min(w, h)
+        im = im.crop(((w - side) // 2, (h - side) // 2,
+                      (w + side) // 2, (h + side) // 2)).resize((size, size))
+        mask = Image.new("L", (size * 2, size * 2), 0)
+        ImageDraw.Draw(mask).ellipse((0, 0, size * 2 - 1, size * 2 - 1),
+                                     fill=255)
+        mask = mask.resize((size, size), Image.LANCZOS)
+        out = im.convert("RGBA")
+        out.putalpha(mask)                  # see-through outside the circle
+        return out
+
     def build(frame):
         s = menu.s
-        width = menu.panel_width()
-        height = int(width * 3 / 4)
+        size = menu.cam_diameter()
         menu.on_clear(stop)
+        menu.set_cam(True)
         menu.header(frame, "Selfie check", close=True)
-        view = tk.Label(frame, bg="#000000", fg=common.MUTED,
-                        text="Starting the camera…", font=menu.f(11),
-                        width=width, height=height, image="")
-        # A blank image fixes the label's size in pixels, not characters.
-        blank = ImageTk.PhotoImage(Image.new("RGB", (width, height), "black"))
-        state["photo"] = blank
-        view.configure(image=blank, compound="center")
-        view.pack()
-        status = tk.Label(frame, text="Only on this computer: nothing is "
-                          "recorded or sent.", bg=common.PANEL,
-                          fg=common.MUTED, font=menu.f(10), anchor="w")
-        status.pack(fill="x", pady=(int(6 * s), 0))
+        status = tk.Label(frame, text="Starting the camera…",
+                          bg=common.PANEL, fg=common.TEXT, font=menu.f(11),
+                          anchor="w", justify="left",
+                          wraplength=menu.panel_width())
+        status.pack(fill="x")
+        tk.Label(frame, text="Only on this computer: nothing is recorded or "
+                 "sent unless you save a photo.", bg=common.PANEL,
+                 fg=common.MUTED, font=menu.f(10), anchor="w",
+                 justify="left", wraplength=menu.panel_width()).pack(
+            fill="x", pady=(int(4 * s), 0))
         row = tk.Frame(frame, bg=common.PANEL)
-        row.pack(fill="x", pady=(int(8 * s), 0))
+        row.pack(fill="x", pady=(int(10 * s), 0))
 
         def save():
             picture = state.get("frame")
@@ -360,33 +375,35 @@ def selfie(ctrl, menu=None, **_):
             path = common.unique(os.path.join(
                 common.pictures_dir(), "Selfie %s.png" % common.stamp()))
             Image.fromarray(picture).save(path)
-            status.configure(text="Saved in Downloads\\Squint\\Screenshots")
+            status.configure(text="✓ Saved in Downloads\\Squint\\Screenshots")
 
         menu.button(row, "Close", menu.back).pack(side="right")
         menu.button(row, "Save photo", save, primary=True).pack(
             side="right", padx=(0, int(6 * s)))
         threading.Thread(target=grab, daemon=True, name="selfie").start()
+        shown = {"live": False}
 
         def show():
             if not state["run"] or menu.closed:
                 return
             try:
-                if not view.winfo_exists():
+                if not status.winfo_exists():
                     return
                 if state["error"]:
-                    view.configure(text=state["error"], image=blank,
-                                   wraplength=width - 20)
+                    status.configure(text=state["error"], fg="#F28B82")
+                    menu.relayout()
                     return
                 if state.get("error_soft") and state["frame"] is None:
-                    view.configure(text=state["error_soft"],
-                                   wraplength=width - 20)
+                    status.configure(text=state["error_soft"])
                 picture = state["frame"]
                 if picture is not None:
-                    im = Image.fromarray(picture)
-                    im = im.resize((width, height))
-                    photo = ImageTk.PhotoImage(im)
+                    photo = ImageTk.PhotoImage(round_picture(picture, size))
                     state["photo"] = photo
-                    view.configure(image=photo, text="")
+                    menu.set_cam_frame(photo)
+                    if not shown["live"]:
+                        shown["live"] = True
+                        status.configure(text="This is how you look right "
+                                         "now.")
             except tk.TclError:
                 return
             ctrl.root.after(40, show)

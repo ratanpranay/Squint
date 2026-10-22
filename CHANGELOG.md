@@ -22,6 +22,12 @@ it, so there is exactly one copy to keep true.
 
 ## Unreleased
 
+### Changed
+
+- **Selfie check in the middle of the ring.** The camera shows as a round,
+  mirrored picture where the QR codes appear, with Save photo and Close in
+  the panel beside it.
+
 ### Fixed
 
 - **Mac: Squint closed when Selfie check opened the camera.** macOS ends an
