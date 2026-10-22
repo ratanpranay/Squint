@@ -59,7 +59,13 @@ jobs:
       - name: Installer (Squint-Setup.exe)
         if: steps.v.outputs.skip != '1'
         run: |
-          python tools/make_installer.py
+          set -o pipefail
+          if ! python tools/make_installer.py 2>&1 | tee installer.log; then
+            # The tail of the log as an annotation, readable from the API.
+            msg=$(tail -n 40 installer.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=installer::$msg"
+            exit 1
+          fi
           cp dist-installer/Squint-Setup-*.exe dist-installer/Squint-Setup.exe
 
       - name: Publish
