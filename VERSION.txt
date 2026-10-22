@@ -1,4 +1,4 @@
-Squint 1.50.2
+Squint 1.51.0
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,24 @@ was wrong, not only that it was.
 
 
 
+
+1.51.0
+
+  - app/radial/card.py: Card - settings (password, choice, check, note),
+    Start, progress bar (fraction or indeterminate), Done / Open folder,
+    or the error, all in one borderless window placed where the menu's
+    panel was (menu passes `anchor`). Work runs on a thread and reports
+    through progress(), which only stores values; the card polls them.
+    The PDF, Zip, Convert and Extract commands, the first-use downloads
+    and Send to a nearby device all go through it; ask_password /
+    ask_choice / Progress are no longer used by them.
+  - Scrolling capture: scroll_offset votes for an offset from rows that
+    have something in them and accepts it when half of the overlap agrees,
+    so a fixed header no longer makes every frame "not overlapping".
+    Tested with 0, 80 and 200 px headers.
+  - pick_files: "*.*" was read as the extension "." and nothing in the
+    Explorer selection matched it.
+---
 
 1.50.2
 

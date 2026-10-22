@@ -20,6 +20,29 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## 1.51.0 — 2026-10-22
+
+### Changed
+
+- **One small card per action.** Picking an action in the tools menu now
+  opens a small card where the menu was, instead of separate pop-up
+  windows. The card shows that action's settings (a password, a format, a
+  size), a Start button, then a progress bar in the same place, and ends
+  with Done and Open folder. Actions with nothing to set go straight to the
+  progress bar. Hide keeps the work going in the background and says when
+  it is finished.
+
+### Fixed
+
+- **Scrolling screenshot often kept only the first screen.** On pages with
+  a menu bar or header that stays put while the page scrolls (most
+  websites), the scrolled parts were not recognised. They are now, and if
+  the page really did not move, the message says so and how to do it.
+- **Zip and Send ignored the files selected in Explorer** and asked for
+  files instead.
+
+---
+
 ## 1.50.2 — 2026-10-22
 
 ### Changed

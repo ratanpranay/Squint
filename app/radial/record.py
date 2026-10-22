@@ -12,7 +12,7 @@ GIF_FPS = 10
 GIF_MAX_WIDTH = 800
 
 
-def video(ctrl, **_):
+def video(ctrl, anchor=None, **_):
     if not common.IS_WINDOWS:
         common.tell(ctrl, "Video recording is Windows-only for now.")
         return
@@ -20,7 +20,8 @@ def video(ctrl, **_):
     if image is None:
         return
     common.with_tool(ctrl, "ffmpeg", "Getting the video tools (once)",
-                     lambda ffmpeg: _start_video(ctrl, ffmpeg, box))
+                     lambda ffmpeg: _start_video(ctrl, ffmpeg, box),
+                     anchor=anchor)
 
 
 def _start_video(ctrl, ffmpeg, box):

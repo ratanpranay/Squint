@@ -89,12 +89,14 @@ def office_to_pdf(src, out_dir=None):
                                  (": " + reason[:160]) if reason else ""))
 
 
-def files_to_pdf(files, out, password=""):
+def files_to_pdf(files, out, password="", progress=None):
+    tick = progress or (lambda *_a: None)
     fitz = _fitz()
     doc = fitz.open()
     made = []
     try:
-        for path in files:
+        for n, path in enumerate(files):
+            tick(n / float(len(files)), os.path.basename(path))
             ext = os.path.splitext(path)[1].lower()
             if ext == ".pdf":
                 with fitz.open(path) as src:
@@ -119,6 +121,7 @@ def files_to_pdf(files, out, password=""):
                 page.insert_image(page.rect, filename=buf.name)
         if doc.page_count == 0:
             raise RuntimeError("nothing in those files could go into a PDF")
+        tick(None, "Saving")
         return save_pdf(doc, out, password)
     finally:
         doc.close()
@@ -129,22 +132,25 @@ def files_to_pdf(files, out, password=""):
                 pass
 
 
-def merge_pdfs(files, out, password=""):
+def merge_pdfs(files, out, password="", progress=None):
+    tick = progress or (lambda *_a: None)
     fitz = _fitz()
     doc = fitz.open()
-    for path in files:
+    for n, path in enumerate(files):
+        tick(n / float(len(files)), os.path.basename(path))
         with fitz.open(path) as src:
             if src.needs_pass:
                 raise RuntimeError("%s is password-protected"
                                    % os.path.basename(path))
             doc.insert_pdf(src)
+    tick(None, "Saving")
     try:
         return save_pdf(doc, out, password)
     finally:
         doc.close()
 
 
-def split_pdf(path, password=""):
+def split_pdf(path, password="", progress=None):
     """Every page as its own PDF, in a folder in Downloads/Squint/PDF."""
     fitz = _fitz()
     base = os.path.splitext(os.path.basename(path))[0]
@@ -154,6 +160,9 @@ def split_pdf(path, password=""):
     with fitz.open(path) as src:
         width = len(str(src.page_count))
         for i in range(src.page_count):
+            if progress:
+                progress(i / float(src.page_count), "Page %d of %d"
+                         % (i + 1, src.page_count))
             one = fitz.open()
             one.insert_pdf(src, from_page=i, to_page=i)
             save_pdf(one, os.path.join(folder, "%s - page %0*d.pdf"
@@ -187,70 +196,6 @@ def lock_pdf(path, out, password):
         return save_pdf(doc, out, password)
 
 
-def _pdf_password(ctrl):
-    return common.ask_password(
-        ctrl.root, "Password", "Lock the PDF with a password? Anyone opening "
-        "it will need to type it.", optional=True)
-
-
-def pdf_cmd(ctrl, action, selection=None, **_):
-    if action == "to_pdf":
-        files = common.pick_files(ctrl, "Files to put in one PDF",
-                                  TO_PDF_TYPES, selection=selection)
-    elif action in ("split", "compress", "lock"):
-        files = common.pick_files(ctrl, "Choose a PDF", PDF_TYPES, many=False,
-                                  selection=selection)
-    else:
-        files = common.pick_files(ctrl, "PDFs to merge, in order", PDF_TYPES,
-                                  selection=selection)
-    if not files:
-        return
-    if action == "lock":
-        password = common.ask_password(ctrl.root, "Lock PDF",
-                                       "Password for %s"
-                                       % os.path.basename(files[0]),
-                                       optional=False)
-    else:
-        password = _pdf_password(ctrl)
-    if password is None:
-        return
-    first = files[0]
-    base = os.path.splitext(os.path.basename(first))[0]
-    if action == "to_pdf":
-        name = base + ".pdf" if len(files) == 1 else "Combined %s.pdf" % common.stamp()
-        out = common.into("pdf", name)
-        work = lambda: files_to_pdf(files, out, password)   # noqa: E731
-        what = "Making the PDF"
-    elif action == "merge":
-        out = common.into("pdf", "Merged %s.pdf" % common.stamp())
-        work = lambda: merge_pdfs(files, out, password)     # noqa: E731
-        what = "Merging"
-    elif action == "split":
-        work = lambda: split_pdf(first, password)           # noqa: E731
-        what = "Splitting"
-    elif action == "compress":
-        out = common.into("pdf", base + " (smaller).pdf")
-        work = lambda: compress_pdf(first, out, password)   # noqa: E731
-        what = "Compressing"
-    else:
-        out = common.into("pdf", base + " (locked).pdf")
-        work = lambda: lock_pdf(first, out, password)       # noqa: E731
-        what = "Locking"
-
-    def done(result):
-        if action == "compress":
-            before, after = os.path.getsize(first), os.path.getsize(result)
-            msg = "Smaller PDF saved: %.1f MB → %.1f MB." % (before / 1e6,
-                                                             after / 1e6)
-        elif action == "split":
-            msg = "Pages saved in a folder."
-        else:
-            msg = "PDF saved%s." % (" with a password" if password else "")
-        common.tell(ctrl, msg, result)
-
-    common.in_background(ctrl, work, done, what)
-
-
 # -- zip ---------------------------------------------------------------
 
 def _walk(paths):
@@ -267,11 +212,17 @@ def _walk(paths):
             yield path, os.path.basename(path)
 
 
-def zip_plain(paths, out):
+def zip_plain(paths, out, progress=None):
+    items = list(_walk(paths))
+    total = sum(os.path.getsize(f) for f, _a in items) or 1
+    done = 0
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED,
                          compresslevel=6) as zf:
-        for full, arc in _walk(paths):
+        for full, arc in items:
+            if progress:
+                progress(done / float(total), os.path.basename(full))
             zf.write(full, arc)
+            done += os.path.getsize(full)
     return out
 
 
@@ -292,14 +243,19 @@ def _needs_password(path):
         return any(info.flag_bits & 0x1 for info in zf.infolist())
 
 
-def extract_plain(path, folder):
+def extract_plain(path, folder, progress=None):
     with zipfile.ZipFile(path) as zf:
-        for info in zf.infolist():
+        infos = zf.infolist()
+        for info in infos:
             target = os.path.realpath(os.path.join(folder, info.filename))
             if not target.startswith(os.path.realpath(folder) + os.sep) \
                     and target != os.path.realpath(folder):
                 raise RuntimeError("the archive points outside its folder")
-        zf.extractall(folder)
+        for n, info in enumerate(infos):
+            if progress:
+                progress(n / float(len(infos)),
+                         os.path.basename(info.filename.rstrip("/")))
+            zf.extract(info, folder)
     return folder
 
 
@@ -314,79 +270,13 @@ def extract_7zip(seven, path, folder, password=""):
     return folder
 
 
-def zip_cmd(ctrl, action, selection=None, **_):
-    if action == "extract":
-        files = common.pick_files(ctrl, "Archive to extract",
-                                  [("Archives", "*.zip *.7z *.tar *.gz *.tgz "
-                                    "*.bz2 *.xz"), ("All files", "*.*")],
-                                  many=False, selection=selection)
-        if not files:
-            return
-        path = files[0]
-        name = os.path.basename(path)
-        for ext in (".tar.gz", ".tar.bz2", ".tar.xz", ".zip", ".7z", ".tgz",
-                    ".tar"):
-            if name.lower().endswith(ext):
-                name = name[:-len(ext)]
-                break
-        folder = common.unique(os.path.join(common.squint_dir("zip"), name))
-        locked = _needs_password(path)
-        if locked is False:
-            common.in_background(
-                ctrl, lambda: extract_plain(path, folder),
-                lambda f: common.tell(ctrl, "Extracted.", f), "Extracting")
-            return
-        password = ""
-        if locked:
-            password = common.ask_password(ctrl.root, "Password",
-                                           "%s is protected." % name,
-                                           optional=False, confirm=False)
-            if password is None:
-                return
-        common.with_tool(
-            ctrl, "7zip", "Getting 7-Zip (once)",
-            lambda seven: common.in_background(
-                ctrl, lambda: extract_7zip(seven, path, folder, password),
-                lambda f: common.tell(ctrl, "Extracted.", f), "Extracting"))
-        return
-
-    files = common.pick_files(ctrl, "Files to zip", ANY_TYPES,
-                              selection=selection)
-    if not files:
-        return
-    first = files[0]
-    name = (os.path.splitext(os.path.basename(first))[0] if len(files) == 1
-            else "Archive %s" % common.stamp()) + ".zip"
-    out = common.into("zip", name)
-    if action == "plain":
-        common.in_background(ctrl, lambda: zip_plain(files, out),
-                             lambda p: common.tell(ctrl, "Zipped.", p),
-                             "Zipping")
-        return
-    got = common.ask_password(
-        ctrl.root, "Zip with password", "Password for the zip (AES-256).",
-        optional=False,
-        extra_check=("Compatible mode: opens in Windows Explorer without "
-                     "7-Zip, but the protection is weak.", False))
-    if got is None:
-        return
-    password, compatible = got
-    common.with_tool(
-        ctrl, "7zip", "Getting 7-Zip (once)",
-        lambda seven: common.in_background(
-            ctrl, lambda: zip_password(seven, files, out, password,
-                                       compatible),
-            lambda p: common.tell(ctrl, "Zipped with a password.", p),
-            "Zipping"))
-
-
 # -- converting --------------------------------------------------------
 
 IMAGE_FORMATS = (("png", "PNG"), ("jpg", "JPG"), ("webp", "WebP"),
                  ("pdf", "PDF (one page each)"))
 
 
-def convert_images(files, fmt, max_side=None, out_dir=None):
+def convert_images(files, fmt, max_side=None, out_dir=None, progress=None):
     from PIL import Image, ImageOps
     try:
         import pillow_heif                  # noqa: F401 - optional
@@ -394,7 +284,9 @@ def convert_images(files, fmt, max_side=None, out_dir=None):
     except Exception:
         pass
     done = []
-    for path in files:
+    for n, path in enumerate(files):
+        if progress:
+            progress(n / float(len(files)), os.path.basename(path))
         with Image.open(path) as im:
             im = ImageOps.exif_transpose(im)
             if max_side and max(im.size) > max_side:
@@ -426,60 +318,6 @@ def video_to_mp4(ffmpeg, src):
     if done.returncode != 0 or not os.path.isfile(out):
         raise RuntimeError(done.stderr.decode("utf-8", "replace")[-300:])
     return out
-
-
-def convert_cmd(ctrl, action, selection=None, **_):
-    if action == "image":
-        files = common.pick_files(
-            ctrl, "Pictures to convert",
-            [("Pictures", " ".join("*" + e for e in IMAGE_EXT))],
-            selection=selection)
-        if not files:
-            return
-        fmt = common.ask_choice(ctrl.root, "Convert pictures",
-                                "Save %d picture%s as" % (
-                                    len(files), "" if len(files) == 1 else "s"),
-                                IMAGE_FORMATS)
-        if not fmt:
-            return
-        size = common.ask_choice(ctrl.root, "Size", "Resize?",
-                                 [("0", "Keep the size"),
-                                  ("3840", "Longest side 3840 px (4K)"),
-                                  ("1920", "Longest side 1920 px"),
-                                  ("1280", "Longest side 1280 px"),
-                                  ("800", "Longest side 800 px")])
-        if size is None:
-            return
-        common.in_background(
-            ctrl, lambda: convert_images(files, fmt, int(size) or None),
-            lambda out: common.tell(ctrl, "Converted %d picture%s."
-                                    % (len(out), "" if len(out) == 1 else "s"),
-                                    out[0]),
-            "Converting")
-    elif action == "office":
-        files = common.pick_files(
-            ctrl, "Office files to turn into PDF",
-            [("Office files", " ".join("*" + e for e in OFFICE_EXT))],
-            selection=selection)
-        if not files:
-            return
-        common.in_background(
-            ctrl, lambda: [office_to_pdf(f) for f in files],
-            lambda out: common.tell(ctrl, "Converted to PDF.", out[0]),
-            "Converting")
-    else:
-        files = common.pick_files(
-            ctrl, "Video to convert",
-            [("Videos", " ".join("*" + e for e in VIDEO_EXT))],
-            many=False, selection=selection)
-        if not files:
-            return
-        common.with_tool(
-            ctrl, "ffmpeg", "Getting the video tools (once)",
-            lambda ffmpeg: common.in_background(
-                ctrl, lambda: video_to_mp4(ffmpeg, files[0]),
-                lambda out: common.tell(ctrl, "Converted to MP4.", out),
-                "Converting the video"))
 
 
 # -- pulling media out of documents ------------------------------------
@@ -547,7 +385,236 @@ def extract_media(path, out_dir=None, progress=None):
     return folder, count
 
 
-def extract_cmd(ctrl, action, selection=None, **_):
+
+
+# -- what the menu calls: each action in one card ------------------------
+#
+# Files come from Explorer's selection or a file dialog first; then one
+# card next to the ring takes it from settings to progress to "Open folder".
+
+from .card import Card, ensure_tool                       # noqa: E402
+
+
+def _n(files, word="file"):
+    return "%d %s%s" % (len(files), word, "" if len(files) == 1 else "s")
+
+
+def _subtitle(files):
+    names = ", ".join(os.path.basename(f) for f in files[:2])
+    return names + (" and %d more" % (len(files) - 2) if len(files) > 2
+                    else "")
+
+
+PASSWORD = {"kind": "password", "key": "password", "optional": True,
+            "label": "Lock with a password (AES-256)"}
+
+_PDF = {
+    "to_pdf": ("Files to PDF", "Make PDF"),
+    "merge": ("Merge PDFs", "Merge"),
+    "split": ("Split PDF", "Split"),
+    "compress": ("Compress PDF", "Compress"),
+    "lock": ("Password-lock PDF", "Lock"),
+}
+
+
+def pdf_cmd(ctrl, action, selection=None, anchor=None, **_):
+    if action == "to_pdf":
+        files = common.pick_files(ctrl, "Files to put in one PDF",
+                                  TO_PDF_TYPES, selection=selection)
+    elif action in ("split", "compress", "lock"):
+        files = common.pick_files(ctrl, "Choose a PDF", PDF_TYPES, many=False,
+                                  selection=selection)
+    else:
+        files = common.pick_files(ctrl, "PDFs to merge, in order", PDF_TYPES,
+                                  selection=selection)
+    if not files:
+        return
+    title, verb = _PDF[action]
+    card = Card(ctrl, title, anchor, _subtitle(files))
+    first = files[0]
+    base = os.path.splitext(os.path.basename(first))[0]
+    pw = dict(PASSWORD)
+    if action == "lock":
+        pw.update(optional=False)
+
+    def start(values):
+        password = values.get("password", "")
+        if action == "to_pdf":
+            name = base + ".pdf" if len(files) == 1 else \
+                "Combined %s.pdf" % common.stamp()
+            out = common.into("pdf", name)
+            work = lambda p: files_to_pdf(files, out, password, p)  # noqa
+        elif action == "merge":
+            out = common.into("pdf", "Merged %s.pdf" % common.stamp())
+            work = lambda p: merge_pdfs(files, out, password, p)    # noqa
+        elif action == "split":
+            work = lambda p: split_pdf(first, password, p)          # noqa
+        elif action == "compress":
+            out = common.into("pdf", base + " (smaller).pdf")
+
+            def work(p):
+                p(None, "Making it smaller")
+                return compress_pdf(first, out, password)
+        else:
+            out = common.into("pdf", base + " (locked).pdf")
+
+            def work(p):
+                p(None, "Locking")
+                return lock_pdf(first, out, password)
+
+        def finish(result):
+            if action == "compress":
+                return ("%.1f MB → %.1f MB" % (os.path.getsize(first) / 1e6,
+                                               os.path.getsize(result) / 1e6),
+                        result)
+            if action == "split":
+                return "Every page saved as its own PDF", result
+            return "PDF saved" + (" with a password" if password else ""), \
+                result
+
+        card.run(work, finish, "%s…" % verb.replace("Make PDF", "Making PDF"))
+
+    card.form([pw], verb, start)
+
+
+def zip_cmd(ctrl, action, selection=None, anchor=None, **_):
+    if action == "extract":
+        files = common.pick_files(ctrl, "Archive to extract",
+                                  [("Archives", "*.zip *.7z *.tar *.gz *.tgz "
+                                    "*.bz2 *.xz"), ("All files", "*.*")],
+                                  many=False, selection=selection)
+        if not files:
+            return
+        path = files[0]
+        name = os.path.basename(path)
+        for ext in (".tar.gz", ".tar.bz2", ".tar.xz", ".zip", ".7z", ".tgz",
+                    ".tar"):
+            if name.lower().endswith(ext):
+                name = name[:-len(ext)]
+                break
+        folder = common.unique(os.path.join(common.squint_dir("zip"), name))
+        locked = _needs_password(path)
+        card = Card(ctrl, "Extract", anchor, os.path.basename(path))
+
+        def finish(result):
+            return "Extracted", result
+
+        def go(password):
+            if locked is False:
+                card.run(lambda p: extract_plain(path, folder, p), finish,
+                         "Extracting…")
+                return
+
+            def work(p):
+                seven = ensure_tool(p, "7zip")
+                p(None, "Extracting")
+                return extract_7zip(seven, path, folder, password)
+
+            card.run(work, finish, "Extracting…")
+
+        if locked:
+            card.form([{"kind": "password", "key": "password",
+                        "optional": False}], "Extract",
+                      lambda v: go(v["password"]))
+        else:
+            go("")
+        return
+
+    files = common.pick_files(ctrl, "Files to zip", ANY_TYPES,
+                              selection=selection)
+    if not files:
+        return
+    name = (os.path.splitext(os.path.basename(files[0]))[0] if len(files) == 1
+            else "Archive %s" % common.stamp()) + ".zip"
+    out = common.into("zip", name)
+    if action == "plain":
+        card = Card(ctrl, "Zip", anchor, _subtitle(files))
+        card.run(lambda p: zip_plain(files, out, p),
+                 lambda r: ("Zipped " + _n(files), r), "Zipping…")
+        return
+    card = Card(ctrl, "Zip with password", anchor, _subtitle(files))
+
+    def start(values):
+        def work(p):
+            seven = ensure_tool(p, "7zip")
+            p(None, "Zipping")
+            return zip_password(seven, files, out, values["password"],
+                                values["compatible"])
+
+        card.run(work, lambda r: ("Zipped with a password", r), "Zipping…")
+
+    card.form([{"kind": "password", "key": "password", "optional": False},
+               {"kind": "check", "key": "compatible", "default": False,
+                "label": "Compatible mode: opens without 7-Zip, but the "
+                         "protection is weak"}],
+              "Zip", start)
+
+
+IMAGE_FORMATS = (("png", "PNG"), ("jpg", "JPG"), ("webp", "WebP"),
+                 ("pdf", "PDF"))
+IMAGE_SIZES = (("0", "Same"), ("3840", "3840"), ("1920", "1920"),
+               ("1280", "1280"), ("800", "800"))
+
+
+def convert_cmd(ctrl, action, selection=None, anchor=None, **_):
+    if action == "image":
+        files = common.pick_files(
+            ctrl, "Pictures to convert",
+            [("Pictures", " ".join("*" + e for e in IMAGE_EXT))],
+            selection=selection)
+        if not files:
+            return
+        card = Card(ctrl, "Convert pictures", anchor, _subtitle(files))
+
+        def start(values):
+            size = int(values["size"]) or None
+            card.run(lambda p: convert_images(files, values["fmt"], size,
+                                              progress=p),
+                     lambda out: ("Converted " + _n(out, "picture"), out[0]),
+                     "Converting…")
+
+        card.form([{"kind": "choice", "key": "fmt", "label": "Save as",
+                    "options": IMAGE_FORMATS, "default": "jpg"},
+                   {"kind": "choice", "key": "size",
+                    "label": "Longest side (pixels)",
+                    "options": IMAGE_SIZES, "default": "0"}],
+                  "Convert", start)
+    elif action == "office":
+        files = common.pick_files(
+            ctrl, "Office files to turn into PDF",
+            [("Office files", " ".join("*" + e for e in OFFICE_EXT))],
+            selection=selection)
+        if not files:
+            return
+        card = Card(ctrl, "Office to PDF", anchor, _subtitle(files))
+
+        def work(p):
+            out = []
+            for n, f in enumerate(files):
+                p(n / float(len(files)), os.path.basename(f))
+                out.append(office_to_pdf(f))
+            return out
+
+        card.run(work, lambda out: ("Converted " + _n(out), out[0]),
+                 "Converting to PDF…")
+    else:
+        files = common.pick_files(
+            ctrl, "Video to convert",
+            [("Videos", " ".join("*" + e for e in VIDEO_EXT))],
+            many=False, selection=selection)
+        if not files:
+            return
+        card = Card(ctrl, "Video to MP4", anchor, _subtitle(files))
+
+        def work(p):
+            ffmpeg = ensure_tool(p, "ffmpeg")
+            p(None, "Converting the video")
+            return video_to_mp4(ffmpeg, files[0])
+
+        card.run(work, lambda out: ("Converted to MP4", out), "Converting…")
+
+
+def extract_cmd(ctrl, action, selection=None, anchor=None, **_):
     types = {"ppt": [("PowerPoint", "*.pptx *.ppsx *.potx")],
              "word": [("Word", "*.docx *.dotx")],
              "pdf": PDF_TYPES}[action]
@@ -555,37 +622,28 @@ def extract_cmd(ctrl, action, selection=None, **_):
                               selection=selection)
     if not files:
         return
-    bar = common.Progress(ctrl.root, "Extracting media")
-    bar.pump()
+    card = Card(ctrl, "Extract media", anchor, _subtitle(files))
 
-    def work():
+    def work(p):
         results = []
         for i, path in enumerate(files):
             name = os.path.basename(path)
 
             def tick(done, total, i=i, name=name):
                 part = (done / float(total)) if total else 1.0
-                bar.set((i + part) / len(files),
-                        "%s   %d of %d" % (name, done, total))
+                p((i + part) / len(files), "%s  %d of %d" % (name, done, total))
 
             results.append(extract_media(path, progress=tick))
         return results
 
-    def done(results):
+    def finish(results):
         total = sum(n for _f, n in results)
         if not total:
-            common.tell(ctrl, "No pictures or media found in %s."
-                        % ("that file" if len(files) == 1 else "those files"))
-            return
+            raise RuntimeError("No pictures, videos or sounds in %s."
+                               % ("that file" if len(files) == 1
+                                  else "those files"))
         folders = [f for f, n in results if n]
-        # Open the folder itself, so the files are in front of the user.
         target = folders[0] if len(folders) == 1 else common.squint_dir("ext")
-        try:
-            from .. import platform_util
-            platform_util.open_path(target)
-        except Exception:
-            pass
-        common.tell(ctrl, "Saved %d file%s." % (
-            total, "" if total == 1 else "s"), target)
+        return "Saved %d file%s" % (total, "" if total == 1 else "s"), target
 
-    common.in_background(ctrl, work, done, "Extracting media", progress=bar)
+    card.run(work, finish, "Extracting media…")

@@ -27,7 +27,7 @@ def pick_region(ctrl):
     return image, (left, top, image.width, image.height)
 
 
-def save_picture(ctrl, image, kind="Screenshot"):
+def save_picture(ctrl, image, kind="Screenshot", note=""):
     path = common.unique(os.path.join(
         common.pictures_dir(), "%s %s.png" % (kind, common.stamp())))
     image.save(path)
@@ -36,8 +36,8 @@ def save_picture(ctrl, image, kind="Screenshot"):
         copied = common.image_to_clipboard(image)
     except Exception as exc:               # noqa: BLE001
         common.log("clipboard: %r" % exc)
-    common.tell(ctrl, "%s saved%s." % (kind, " and copied" if copied else ""),
-                path)
+    common.tell(ctrl, "%s saved%s.%s" % (kind, " and copied" if copied else "",
+                                         ("\n" + note) if note else ""), path)
     return path
 
 
@@ -88,34 +88,42 @@ def _busy(sig):
 
 def scroll_offset(prev, new):
     """How far the page moved up between two frames (rows), 0 for not at
-    all, None when the frames do not overlap."""
+    all, None when the frames do not overlap.
+
+    Judged on rows with something in them: blank rows match anywhere and
+    prove nothing. A header or toolbar that stays put while the page
+    scrolls under it does not match at the right offset, so up to half of
+    the overlap may disagree and the offset still counts."""
     h = len(new)
     if prev == new:
         return 0
     where = {}
     for i, sig in enumerate(prev):
-        where.setdefault(sig, []).append(i)
-    best = None
-    anchors = [r for r in range(h // 2) if _busy(new[r])][:12]
-    tried = set()
+        if _busy(sig):
+            where.setdefault(sig, []).append(i)
+    busy_new = [r for r in range(h) if _busy(new[r])]
+    anchors = busy_new[:40]
+    votes = {}
     for r in anchors:
         for p in where.get(new[r], ()):
             s = p - r
-            if s <= 0 or s in tried:
-                continue
-            tried.add(s)
-            overlap = h - s
-            if overlap < 8:
-                continue
-            same = sum(1 for k in range(overlap) if new[k] == prev[k + s])
-            score = same / float(overlap)
-            if score >= 0.9 and (best is None or score > best[1]):
-                best = (s, score)
+            if 0 < s < h - 8:
+                votes[s] = votes.get(s, 0) + 1
+    best = None
+    for s, _v in sorted(votes.items(), key=lambda kv: -kv[1])[:8]:
+        rows = [k for k in busy_new if k < h - s]
+        if len(rows) < 6:
+            continue
+        same = sum(1 for k in rows if new[k] == prev[k + s])
+        score = same / float(len(rows))
+        if score >= 0.5 and (best is None or score > best[1]):
+            best = (s, score)
     return best[0] if best else None
 
 
-def stitch(frames):
-    """One tall picture from frames of a page scrolled downwards."""
+def stitch(frames, report=None):
+    """One tall picture from frames of a page scrolled downwards.
+    `report` (a list), when given, gets how many frames were used."""
     if not frames:
         return None
     pieces = [frames[0]]
@@ -128,6 +136,8 @@ def stitch(frames):
         pieces.append(frame.crop((0, frame.height - s, frame.width,
                                   frame.height)))
         prev_sig = sig
+    if report is not None:
+        report.append(len(pieces))
     height = sum(p.height for p in pieces)
     out = Image.new("RGB", (frames[0].width, height), "white")
     y = 0
@@ -206,11 +216,13 @@ def scrolling(ctrl, **_):
             return
         ctrl.root.after(220, grab)
 
+    used = []
+
     def finish():
         state["running"] = False
         outline.close()
         grab_last()
-        common.in_background(ctrl, lambda: stitch(frames), done,
+        common.in_background(ctrl, lambda: stitch(frames, used), done,
                              "Scrolling capture")
 
     def grab_last():
@@ -222,15 +234,21 @@ def scrolling(ctrl, **_):
             pass
 
     def done(picture):
-        if picture is not None:
-            save_picture(ctrl, picture, "Scrolling capture")
+        if picture is None:
+            return
+        note = ""
+        if used and used[0] <= 1:
+            note = ("The page did not seem to move, so only what was visible "
+                    "is in it. Scroll with the mouse wheel inside the red "
+                    "box before pressing Enter.")
+        save_picture(ctrl, picture, "Scrolling capture", note)
 
     def cancel():
         state["running"] = False
         outline.close()
 
-    bar = common.StopBar(ctrl, "Scroll down slowly, then press Enter",
-                         finish, cancel, avoid=box)
+    bar = common.StopBar(ctrl, "Scroll down inside the red box, then "
+                         "press Enter", finish, cancel, avoid=box)
     exclude_from_capture(bar.win)
     ctrl.radial_recording = bar
     ctrl.root.after(300, grab)

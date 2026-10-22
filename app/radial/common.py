@@ -381,18 +381,22 @@ def get_7zip(progress=None):
     raise RuntimeError("could not get 7-Zip (%s)" % last)
 
 
-def with_tool(ctrl, getter, title, then):
-    """Make sure a helper program is here (fetching it with a progress
-    window if not), then call `then(path)` on the Tk thread."""
+def with_tool(ctrl, getter, title, then, anchor=None):
+    """Make sure a helper program is here, fetching it in a card with a
+    progress bar the first time, then call `then(path)` on the Tk thread."""
     finder = {"ffmpeg": ffmpeg_path, "7zip": sevenzip_path}[getter]
     have = finder()
     if have:
         then(have)
         return
-    fetch = {"ffmpeg": get_ffmpeg, "7zip": get_7zip}[getter]
-    bar = Progress(ctrl.root, title)
-    bar.pump()
-    in_background(ctrl, lambda: fetch(bar), then, title, progress=bar)
+    from .card import Card, ensure_tool
+    card = Card(ctrl, title, anchor)
+
+    def finish(path):
+        ctrl.root.after(50, lambda: then(path))
+        return None
+
+    card.run(lambda p: ensure_tool(p, getter), finish, title)
 
 
 # -- small dialogs -----------------------------------------------------
@@ -573,7 +577,8 @@ def explorer_selection(hwnd):
 def pick_files(ctrl, title, types, many=True, selection=None):
     """Explorer's selection when it fits `types`, otherwise a file dialog."""
     exts = tuple(e.lower() for _label, pattern in types
-                 for e in pattern.replace("*", "").split() if e.startswith("."))
+                 for e in pattern.replace("*", "").split()
+                 if e.startswith(".") and len(e) > 1)
     if selection:
         fits = [p for p in selection
                 if not exts or p.lower().endswith(exts)]

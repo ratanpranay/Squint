@@ -348,6 +348,8 @@ class RadialMenu:
             return
         label, action, uses_files = rows[j]
         front = self.front
+        left, top, _w, _h = self._panel_box()
+        anchor = (int(self.mon[0] + left), int(self.mon[1] + top))
         self.close()
 
         def go():
@@ -356,7 +358,7 @@ class RadialMenu:
                 selection = common.explorer_selection(front)
             common.log("%s > %s (%d selected)" % (full, label, len(selection)))
             try:
-                action(ctrl, selection=selection)
+                action(ctrl, selection=selection, anchor=anchor)
             except Exception as exc:      # noqa: BLE001 - shown to the user
                 import traceback
                 common.log(traceback.format_exc())

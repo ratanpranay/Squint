@@ -462,25 +462,37 @@ def receive_cmd(ctrl, **_):
                 "under Send on another one.", receive=True)
 
 
-def phone_cmd(ctrl, selection=None, **_):
+def phone_cmd(ctrl, selection=None, anchor=None, **_):
     files = [p for p in (selection or []) if os.path.isfile(p)]
-    if not files:
-        choice = common.ask_choice(ctrl.root, "Phone", "What do you want to do?",
-                                   [("send", "Send files to my phone"),
-                                    ("get", "Get files from my phone")])
-        if choice is None:
-            return
-        if choice == "send":
-            files = common.pick_files(ctrl, "Files for the phone",
-                                      [("All files", "*.*")])
-            if not files:
+
+    def open_window(files):
+        ShareWindow(ctrl, "Phone via QR",
+                    "Scan with the phone's camera. Phone and computer must "
+                    "be on the same Wi-Fi.", shared=files, receive=True)
+
+    if files:
+        open_window(files)
+        return
+    from .card import Card
+    card = Card(ctrl, "Phone via QR", anchor)
+
+    def start(values):
+        card.close()
+        chosen = []
+        if values["what"] == "send":
+            chosen = common.pick_files(ctrl, "Files for the phone",
+                                       [("All files", "*.*")])
+            if not chosen:
                 return
-    ShareWindow(ctrl, "Phone via QR",
-                "Scan with the phone's camera. Phone and computer must be on "
-                "the same Wi-Fi.", shared=files, receive=True)
+        open_window(chosen)
+
+    card.form([{"kind": "choice", "key": "what", "label": "What to do",
+                "options": [("send", "Send to phone"),
+                            ("get", "Get from phone")],
+                "default": "get"}], "Show QR code", start)
 
 
-def nearby_cmd(ctrl, selection=None, **_):
+def nearby_cmd(ctrl, selection=None, anchor=None, **_):
     files = common.pick_files(ctrl, "Files to send", [("All files", "*.*")],
                               selection=[p for p in (selection or [])
                                          if os.path.isfile(p)])
@@ -509,16 +521,21 @@ def nearby_cmd(ctrl, selection=None, **_):
 
     def choose(device):
         win.destroy()
-        bar = common.Progress(ctrl.root, "Waiting for %s to accept…"
-                              % device["name"])
-        bar.pump()
+        from .card import Card
+        card = Card(ctrl, "Send to %s" % device["name"], None,
+                    "%d file%s" % (len(files), "" if len(files) == 1 else "s"))
 
-        common.in_background(
-            ctrl, lambda: push(device, files, bar),
-            lambda n: common.tell(ctrl, "Sent %d file%s to %s."
-                                  % (n, "" if n == 1 else "s",
-                                     device["name"])),
-            "Sending", progress=bar)
+        class Bar:
+            def set(self, fraction, text=None):
+                card.progress(fraction, text)
+
+        def work(p):
+            p(None, "Waiting for %s to accept" % device["name"])
+            return push(device, files, Bar())
+
+        card.run(work, lambda n: ("Sent %d file%s" % (
+            n, "" if n == 1 else "s"), None),
+            "Sending to %s…" % device["name"])
 
     def look():
         if not win.winfo_exists():
