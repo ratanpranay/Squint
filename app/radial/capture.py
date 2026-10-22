@@ -429,25 +429,28 @@ def _mac_needs_refresh():
         return True                      # cannot tell: do not risk it
 
 
-_REFRESH = """
-import os, subprocess, sys, time
-pid, root = int(sys.argv[1]), sys.argv[2]
-for _ in range(600):
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        break
-    time.sleep(0.3)
-sys.path.insert(0, root)
-from app import mac_bundle
-apps = mac_bundle.bundles()
-for app in apps:
-    try:
-        mac_bundle.rebuild(app)
-    except Exception as exc:
-        mac_bundle.log("bundle     : refresh for camera failed - %s" % exc)
-if apps:
-    subprocess.Popen(["open", apps[0]])
+# Runs with /bin/bash, outside the app it rebuilds - the same steps as
+# check.command, which is known to work: wait for Squint to close, build a
+# fresh bundle with make_app.py, put it where the running one was, reopen.
+_REFRESH = r"""
+PID="$1"; ROOT="$2"; BUNDLE="$3"
+LOG="$HOME/Library/Application Support/Squint/launch.log"
+echo "--- camera refresh $(date): pid $PID, bundle $BUNDLE ---" >>"$LOG"
+for i in $(seq 1 100); do kill -0 "$PID" 2>/dev/null || break; sleep 0.2; done
+kill -9 "$PID" 2>/dev/null
+sleep 0.5
+"$ROOT/.venv/bin/python" "$ROOT/tools/make_app.py" >>"$LOG" 2>&1
+if [ -d "$ROOT/Squint.app" ] && [ -n "$BUNDLE" ] && \
+   [ "$BUNDLE" != "$ROOT/Squint.app" ] && [ -d "$BUNDLE" ]; then
+    rm -rf "$BUNDLE.old" 2>/dev/null
+    mv "$BUNDLE" "$BUNDLE.old" && cp -R "$ROOT/Squint.app" "$BUNDLE" \
+        && rm -rf "$BUNDLE.old" || { rm -rf "$BUNDLE"; mv "$BUNDLE.old" "$BUNDLE"; }
+fi
+if [ -d "$HOME/Applications/Squint.app" ] && [ "$BUNDLE" != "$HOME/Applications/Squint.app" ]; then
+    rm -rf "$HOME/Applications/Squint.app" && cp -R "$ROOT/Squint.app" "$HOME/Applications/"
+fi
+echo "refresh done; opening ${BUNDLE:-$ROOT/Squint.app}" >>"$LOG"
+open "${BUNDLE:-$ROOT/Squint.app}" || open "$ROOT/Squint.app"
 """
 
 
@@ -456,8 +459,6 @@ def _offer_mac_refresh(ctrl, menu):
     description in it - then macOS asks for the camera instead of ending
     the app. Done for the user: quit, rebuild, reopen."""
     import subprocess
-    import sys
-    import tempfile
     from .card import Card
     from .. import config
     card = Card(ctrl, "Selfie check", None,
@@ -465,20 +466,28 @@ def _offer_mac_refresh(ctrl, menu):
                 "camera.", host=menu)
 
     def restart(_values):
-        script = os.path.join(tempfile.gettempdir(), "squint-refresh.py")
-        with open(script, "w", encoding="utf-8") as fh:
-            fh.write(_REFRESH)
-        subprocess.Popen([sys.executable, script, str(os.getpid()),
-                          os.path.abspath(config.app_dir())],
-                         start_new_session=True, stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL)
-        common.log("selfie: refreshing the app bundle for the camera")
+        bundle = ""
+        try:
+            from AppKit import NSBundle
+            bundle = str(NSBundle.mainBundle().bundlePath() or "")
+            if not bundle.endswith(".app"):
+                bundle = ""
+        except Exception:
+            pass
+        subprocess.Popen(["/bin/bash", "-c", _REFRESH, "squint-refresh",
+                          str(os.getpid()), os.path.abspath(config.app_dir()),
+                          bundle],
+                         start_new_session=True, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        common.log("selfie: refreshing %s for the camera" % (bundle or "app"))
         menu.close()
         ctrl.root.after(200, ctrl.quit)
+        # Make sure this process really ends, so the refresh can go ahead.
+        ctrl.root.after(3000, lambda: os._exit(0))
 
     card.form([{"kind": "note", "text": "Squint will close, update its app "
                 "with the camera permission, and open again by itself "
-                "(about 10 seconds). Then choose Selfie check again; macOS "
+                "(about 15 seconds). Then choose Selfie check again; macOS "
                 "will ask once to allow the camera."}],
               "Restart Squint", restart)
 

@@ -20,6 +20,17 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Mac: "Restart Squint" in Selfie check closed Squint but did not open
+  it again.** It now follows the same steps as check.command: waits for
+  Squint to close, rebuilds the app with the camera permission, puts it
+  back where yours is (Applications included), and opens that copy.
+
+---
+
 ## 1.55.2 — 2026-10-22
 
 ### Changed
