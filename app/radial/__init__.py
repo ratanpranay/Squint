@@ -1,4 +1,4 @@
-"""The radial menu: nine everyday tools around the mouse, on Ctrl+Alt+Space.
+"""The radial menu: eight everyday tools around the mouse, on Ctrl+Alt+Space.
 
 Squint's own shortcuts are untouched; this is one more hotkey, registered
 beside them. `open_menu(controller)` is all main.py calls.
@@ -49,9 +49,6 @@ def _tool_list():
     def zipper(action):
         return lambda ctrl, **kw: docs.zip_cmd(ctrl, action, **kw)
 
-    def conv(action):
-        return lambda ctrl, **kw: docs.convert_cmd(ctrl, action, **kw)
-
     def ext(action):
         return lambda ctrl, **kw: docs.extract_cmd(ctrl, action, **kw)
 
@@ -70,8 +67,10 @@ def _tool_list():
              "Saved in Downloads\\Squint\\Screenshots."),
         tool("rec", "Record", "Screen record", "",
              [("Region video", record.video, False, PANEL),
-              ("Region GIF (max 6 s)", record.gif, False, SCREEN)],
-             "Enter stops, Esc cancels; GIF stops at 6 s. "
+              ("Region GIF (max 6 s)", record.gif, False, SCREEN),
+              ("Video to MP4", docs.video_cmd, True, PANEL)],
+             "Enter stops, Esc cancels; GIF stops at 6 s. Video to MP4 "
+             "takes MOV, MKV, AVI, WMV, WebM and more. "
              "Saved in Downloads\\Squint\\Recordings."),
         tool("trans", "Translate", "Translate & OCR", "",
              [("Translate region", _squint("trigger_snip"), False, SCREEN),
@@ -81,11 +80,12 @@ def _tool_list():
                SCREEN)],
              "Powered by Squint. Its own shortcuts still work directly."),
         tool("pdf", "PDF", "PDF tools", "",
-             [("Files to PDF", pdf("to_pdf"), True, PANEL),
+             [("Convert to PDF", pdf("to_pdf"), True, PANEL),
               ("Merge", pdf("merge"), True, PANEL),
               ("Split", pdf("split"), True, PANEL),
               ("Compress", pdf("compress"), True, PANEL),
               ("Password-lock PDF", pdf("lock"), True, PANEL)],
+             "Convert takes Word, PowerPoint, Excel, pictures and PDFs. "
              "Optional password (AES-256). Saved in Downloads\\Squint\\PDF."),
         tool("zip", "Zip", "Compress", "",
              [("Zip selected", zipper("plain"), True, PANEL),
@@ -95,18 +95,12 @@ def _tool_list():
              "Saved in Downloads\\Squint\\Zip."),
         tool("send", "Transfers", "Transfers", "",
              [("Send to nearby device", send.nearby_cmd, True, PANEL),
-              ("Receive", send.receive_cmd, False, PANEL),
+              ("Receive from nearby device", send.receive_cmd, False, PANEL),
               ("Phone via QR", send.phone_cmd, True, PANEL)],
              "Same Wi-Fi only. Received files: "
              "Downloads\\Squint\\Received.", top=send.name_row),
         tool("cal", "Calendar", "Calendar", "", [],
              view=calendar_view.build, wide=True),
-        tool("conv", "Convert", "Convert files", "",
-             [("Image format / resize", conv("image"), True, PANEL),
-              ("Office to PDF", conv("office"), True, PANEL),
-              ("Video to MP4", conv("video"), True, PANEL)],
-             "Uses what is selected in Explorer. "
-             "Saved in Downloads\\Squint\\Converted."),
         tool("ext", "Extract", "Extract media", "",
              [("From PowerPoint", ext("ppt"), True, PANEL),
               ("From Word", ext("word"), True, PANEL),

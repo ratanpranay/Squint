@@ -163,7 +163,7 @@ class RadialMenu:
         return int((420 if wide else 290) * self.s)
 
     def _item_xy(self, i):
-        a = math.radians(-90 + i * 40)
+        a = math.radians(-90 + i * 360.0 / len(self.tools))
         r = 150 * self.s
         return self.cx + r * math.cos(a), self.cy + r * math.sin(a), a
 
@@ -217,7 +217,8 @@ class RadialMenu:
             c.tag_bind("support_line", "<Leave>",
                        lambda _e: c.configure(cursor=""))
         else:
-            hint = "1–9 picks a tool · letters pick an action · Esc goes back"
+            hint = ("1–%d picks a tool · letters pick an action · Esc goes "
+                    "back" % len(self.tools))
         c.create_text(cx, cy + r + 22 * s, text=hint,
                       fill="#C9CED8", font=self.f(11), tags=("ring", "hint"))
         c.tag_raise(self.panel_item)
@@ -558,7 +559,8 @@ class RadialMenu:
             return
         ch = (e.char or "").lower()
         if ch and ch in "123456789":
-            self.select(int(ch) - 1)
+            if int(ch) <= len(self.tools):
+                self.select(int(ch) - 1)
             return
         if self.selected is None:
             if e.keysym in ("Left", "Up", "Right", "Down", "Tab"):
@@ -671,7 +673,7 @@ class RadialMenu:
             return
         if asker is None:
             return
-        names = [str(n) for n in range(1, 10)] + \
+        names = [str(n) for n in range(1, len(self.tools) + 1)] + \
             [chr(c) for c in range(97, 123)] + ["return"]
         down = set()
         for name in names:

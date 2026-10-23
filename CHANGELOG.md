@@ -20,6 +20,28 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Eight tools in the ring, evenly spaced.** Convert is gone; what it did
+  moved where you would look for it.
+- **PDF → Convert to PDF** takes Word, PowerPoint, Excel, pictures and PDFs
+  together. With several files, choose one PDF or a PDF for each. On a Mac
+  it uses Pages, Keynote or Numbers.
+- **Record → Video to MP4** takes every common video: MOV, MKV, AVI, WMV,
+  WebM, FLV, MTS, 3GP, MPEG and more. Saved with the recordings. The Mac
+  now fetches the same video tools as Windows the first time (it could
+  only do MOV before).
+- **Transfers:** "Receive" is now "Receive from nearby device"; Phone via
+  QR offers "From phone to this PC" and "From this PC to phone".
+
+### Removed
+
+- Image format / resize.
+
+---
+
 ## 1.56.0 — 2026-10-22
 
 ### Fixed

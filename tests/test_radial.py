@@ -1,6 +1,6 @@
 """The tools menu (app/radial): every tool's own work, without the screen.
 
-Zip and extract, media out of a deck and a Word file, image conversion,
+Zip and extract, media out of a deck and a Word file, video to MP4,
 PDF merge/split/lock, the scrolling-capture stitch, the GIF, the calendar,
 the world clock against the real time-zone database, the QR encoder, the
 icons, file transfer end to end over the loopback, and that every tool
@@ -50,7 +50,7 @@ def _picture(name="p.png", size=(120, 80), colour="red"):
 
 class Folders(unittest.TestCase):
     def test_each_tool_has_its_folder(self):
-        for tool in ("shot", "rec", "pdf", "zip", "send", "conv", "ext"):
+        for tool in ("shot", "rec", "pdf", "zip", "send", "ext"):
             path = common.squint_dir(tool)
             self.assertTrue(os.path.isdir(path), path)
             self.assertEqual(os.path.dirname(path),
@@ -99,17 +99,28 @@ class Media(unittest.TestCase):
         self.assertEqual(n, 1)
 
 
-class Convert(unittest.TestCase):
-    def test_images(self):
-        src = _picture("c.png")
-        out = docs.convert_images([src], "jpg", 64)[0]
-        self.assertTrue(out.endswith(".jpg"))
-        with Image.open(out) as img:
-            self.assertEqual(max(img.size), 64)
-        self.assertIn(os.path.join("Squint", "Converted"), out)
-        out = docs.convert_images([src], "pdf")[0]
-        with open(out, "rb") as f:
-            self.assertEqual(f.read(4), b"%PDF")
+class Video(unittest.TestCase):
+    def test_formats(self):
+        for ext in (".mov", ".mkv", ".avi", ".wmv", ".webm", ".m4v", ".mts"):
+            self.assertIn(ext, docs.VIDEO_EXT)
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "FFmpeg not installed")
+    def test_to_mp4(self):
+        src = os.path.join(TMP, "clip.mkv")
+        common.run([shutil.which("ffmpeg"), "-loglevel", "error", "-y", "-f",
+                    "lavfi", "-i", "testsrc=size=160x120:rate=10", "-t",
+                    "1", src])
+        out = docs.video_to_mp4(shutil.which("ffmpeg"), src)
+        self.assertTrue(out.endswith(".mp4"))
+        self.assertIn(os.path.join("Squint", "Recordings"), out)
+
+
+class Tools(unittest.TestCase):
+    def test_eight_tools_no_convert(self):
+        keys = [t["key"] for t in __import__("app.radial",
+                                             fromlist=["_tools"])._tools()]
+        self.assertEqual(keys, ["shot", "rec", "trans", "pdf", "zip", "send",
+                                "cal", "ext"])
 
 
 @unittest.skipUnless(_has("pymupdf") or _has("fitz"), "PyMuPDF not installed")
@@ -231,7 +242,7 @@ class QrAndIcons(unittest.TestCase):
 
     def test_icons(self):
         for key in ("shot", "rec", "trans", "pdf", "zip", "send", "cal",
-                    "conv", "ext"):
+                    "ext"):
             img = icons.image(key, 22, "#FFFFFF")
             self.assertEqual(img.size, (22, 22))
             self.assertGreater(img.getchannel("A").getbbox()[2], 10, key)

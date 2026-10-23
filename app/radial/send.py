@@ -635,10 +635,12 @@ def phone_cmd(ctrl, selection=None, menu=None, **_):
             if chosen:
                 phone_cmd(ctrl, chosen, menu)
 
-        menu.row(frame, "Send files to my phone", send_to_phone, "A")
-        menu.row(frame, "Get files from my phone", lambda: _share_view(
+        here = "this Mac" if common.IS_MAC else "this PC"
+        menu.row(frame, "From phone to " + here, lambda: _share_view(
             ctrl, menu, "Phone via QR", "Scan the code with the phone's "
-            "camera, then choose the photos or files to send."), "B")
+            "camera, then choose the photos or files to send."), "A")
+        menu.row(frame, "From %s to phone" % here,
+                 send_to_phone, "B")
         menu.note(frame, "Phone and computer must be on the same Wi-Fi.")
 
     menu.show_view(build, pinned=True, name="phone")

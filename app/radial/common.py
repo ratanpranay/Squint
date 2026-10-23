@@ -49,7 +49,6 @@ FOLDERS = {
     "pdf": "PDF",
     "zip": "Zip",
     "send": "Received",
-    "conv": "Converted",
     "ext": "Extracted media",
 }
 
@@ -310,20 +309,58 @@ FFMPEG_URL = ("https://github.com/BtbN/FFmpeg-Builds/releases/download/"
               "latest/ffmpeg-master-latest-win64-gpl.zip")
 
 
+# The Mac's: Martin Riedl's static builds, Apple Silicon or Intel.
+FFMPEG_MAC_URL = ("https://ffmpeg.martin-riedl.de/redirect/latest/macos/"
+                  "%s/release/ffmpeg.zip")
+
+
 def ffmpeg_path():
     found = shutil.which("ffmpeg")
+    if IS_MAC:
+        mine = os.path.join(tools_dir(), "ffmpeg", "ffmpeg")
+        if os.path.isfile(mine):
+            return mine
+        for brew in ("/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"):
+            if os.path.isfile(brew):
+                return brew
+        return found
     if not IS_WINDOWS:
         return found
     mine = os.path.join(tools_dir(), "ffmpeg", "ffmpeg.exe")
     return mine if os.path.isfile(mine) else found
 
 
+def _get_ffmpeg_mac(progress=None):
+    import platform
+    arch = "arm64" if platform.machine().lower() in ("arm64", "aarch64") \
+        else "amd64"
+    folder = os.path.join(tools_dir(), "ffmpeg")
+    os.makedirs(folder, exist_ok=True)
+    archive = os.path.join(tools_dir(), "ffmpeg-download.zip")
+    download(FFMPEG_MAC_URL % arch, archive, progress,
+             "Getting the video tools")
+    out = os.path.join(folder, "ffmpeg")
+    with zipfile.ZipFile(archive) as zf:
+        name = next((n for n in zf.namelist()
+                     if os.path.basename(n) == "ffmpeg"), None)
+        if not name:
+            raise RuntimeError("the video tools download was not as expected")
+        with zf.open(name) as src, open(out + ".part", "wb") as dst:
+            shutil.copyfileobj(src, dst)
+    os.remove(archive)
+    os.chmod(out + ".part", 0o755)
+    os.replace(out + ".part", out)
+    return out
+
+
 def get_ffmpeg(progress=None):
-    """FFmpeg, downloaded once (about 140 MB) the first time it is
-    needed. Kept out of the install so everyone else never pays for it."""
+    """FFmpeg, downloaded once the first time it is needed. Kept out of the
+    install so everyone else never pays for it."""
     have = ffmpeg_path()
     if have:
         return have
+    if IS_MAC:
+        return _get_ffmpeg_mac(progress)
     if not IS_WINDOWS:
         raise RuntimeError("FFmpeg is not installed")
     folder = os.path.join(tools_dir(), "ffmpeg")

@@ -1,4 +1,4 @@
-"""The nine tool icons.
+"""The tool icons.
 
 Drawn here rather than taken from a font so they look the same everywhere:
 the Windows icon font does not exist on a Mac, where the ring used to show
@@ -76,11 +76,6 @@ def image(key, size, colour):
         for gx in (8, 12, 16):
             for gy in (13.5, 17):
                 circle(gx, gy, 0.9, fill=True)
-    elif key == "conv":                     # two arrows
-        line((4, 8), (19.5, 8))
-        line((16, 4.5), (19.5, 8), (16, 11.5))
-        line((20, 16), (4.5, 16))
-        line((8, 12.5), (4.5, 16), (8, 19.5))
     elif key == "ext":                      # picture
         rect(3, 4, 21, 20, 2)
         line((3.8, 17), (9, 11.5), (13, 15.5), (16, 12.5), (20.2, 17))

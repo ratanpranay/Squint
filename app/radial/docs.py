@@ -14,12 +14,16 @@ IMAGE_EXT = (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff",
              ".webp", ".heic")
 OFFICE_EXT = (".doc", ".docx", ".rtf", ".odt", ".ppt", ".pptx", ".odp",
               ".xls", ".xlsx", ".ods")
-VIDEO_EXT = (".mov", ".mkv", ".avi", ".wmv", ".webm", ".flv", ".m4v",
-             ".mpg", ".mpeg", ".3gp", ".mp4")
+if common.IS_MAC:
+    OFFICE_EXT += (".pages", ".key", ".numbers")
+VIDEO_EXT = (".mov", ".mkv", ".avi", ".wmv", ".webm", ".flv", ".f4v",
+             ".m4v", ".mpg", ".mpeg", ".m2v", ".ts", ".mts", ".m2ts",
+             ".vob", ".3gp", ".3g2", ".ogv", ".asf", ".divx", ".rm",
+             ".rmvb", ".mxf", ".mp4")
 
 PDF_TYPES = [("PDF", "*.pdf")]
 ANY_TYPES = [("All files", "*.*")]
-TO_PDF_TYPES = [("Pictures, PDFs and Office files",
+TO_PDF_TYPES = [("Documents, slides, sheets, pictures and PDFs",
                  " ".join("*" + e for e in IMAGE_EXT + (".pdf",) + OFFICE_EXT)),
                 ("All files", "*.*")]
 
@@ -48,7 +52,7 @@ def save_pdf(doc, path, password=""):
 
 def office_to_pdf(src, out_dir=None):
     """An Office file as PDF, through Office itself (or LibreOffice)."""
-    out_dir = out_dir or common.squint_dir("conv")
+    out_dir = out_dir or common.squint_dir("pdf")
     base = os.path.splitext(os.path.basename(src))[0]
     out = common.unique(os.path.join(out_dir, base + ".pdf"))
     ext = os.path.splitext(src)[1].lower()
@@ -73,6 +77,10 @@ def office_to_pdf(src, out_dir=None):
         if os.path.isfile(out):
             return out
         reason = done.stderr.decode("utf-8", "replace").strip()
+    elif common.IS_MAC:
+        reason = _iwork_to_pdf(src, out)
+        if reason is None:
+            return out
     else:
         reason = ""
     office = shutil.which("soffice") or shutil.which("libreoffice")
@@ -84,9 +92,48 @@ def office_to_pdf(src, out_dir=None):
         if os.path.isfile(made):
             shutil.move(made, out)
             return out
+    if common.IS_MAC:
+        need = {"pages": "Pages", "keynote": "Keynote",
+                "numbers": "Numbers"}[_IWORK.get(ext, "pages")]
+        raise RuntimeError("needs %s (free from the App Store) to convert %s"
+                           "%s" % (need, os.path.basename(src),
+                                   (": " + reason[:160]) if reason else ""))
     raise RuntimeError("needs Microsoft Office (or LibreOffice) to convert "
                        "%s%s" % (os.path.basename(src),
                                  (": " + reason[:160]) if reason else ""))
+
+
+_IWORK = {".doc": "pages", ".docx": "pages", ".rtf": "pages",
+          ".odt": "pages", ".pages": "pages",
+          ".ppt": "keynote", ".pptx": "keynote", ".odp": "keynote",
+          ".key": "keynote",
+          ".xls": "numbers", ".xlsx": "numbers", ".ods": "numbers",
+          ".numbers": "numbers"}
+
+
+def _iwork_to_pdf(src, out):
+    """A Mac has Pages, Keynote and Numbers, which open Word, PowerPoint
+    and Excel files and export PDF. None when it worked, else why not."""
+    app = {"pages": "Pages", "keynote": "Keynote", "numbers": "Numbers"}[
+        _IWORK.get(os.path.splitext(src)[1].lower(), "pages")]
+    if not os.path.isdir("/Applications/%s.app" % app):
+        return "%s is not installed" % app
+
+    def s(path):
+        return path.replace("\\", "\\\\").replace('"', '\\"')
+
+    script = ('set inF to (POSIX file "%s") as alias\n'
+              'set outF to POSIX file "%s"\n'
+              'tell application "%s"\n'
+              '  set d to open inF\n'
+              '  export d to outF as PDF\n'
+              '  close d saving no\n'
+              'end tell' % (s(src), s(out), app))
+    done = common.run(["osascript", "-e", script], timeout=300)
+    if os.path.isfile(out):
+        return None
+    return done.stderr.decode("utf-8", "replace").strip() or \
+        "%s could not export it" % app
 
 
 def files_to_pdf(files, out, password="", progress=None):
@@ -270,46 +317,11 @@ def extract_7zip(seven, path, folder, password=""):
     return folder
 
 
-# -- converting --------------------------------------------------------
-
-IMAGE_FORMATS = (("png", "PNG"), ("jpg", "JPG"), ("webp", "WebP"),
-                 ("pdf", "PDF (one page each)"))
-
-
-def convert_images(files, fmt, max_side=None, out_dir=None, progress=None):
-    from PIL import Image, ImageOps
-    try:
-        import pillow_heif                  # noqa: F401 - optional
-        pillow_heif.register_heif_opener()
-    except Exception:
-        pass
-    done = []
-    for n, path in enumerate(files):
-        if progress:
-            progress(n / float(len(files)), os.path.basename(path))
-        with Image.open(path) as im:
-            im = ImageOps.exif_transpose(im)
-            if max_side and max(im.size) > max_side:
-                im.thumbnail((max_side, max_side), Image.LANCZOS)
-            base = os.path.splitext(os.path.basename(path))[0]
-            folder = out_dir or common.squint_dir("conv")
-            suffix = " (%dpx)" % max_side if max_side else ""
-            out = common.unique(os.path.join(folder, "%s%s.%s"
-                                             % (base, suffix, fmt)))
-            if fmt in ("jpg", "pdf"):
-                im = im.convert("RGB")
-            elif im.mode not in ("RGB", "RGBA", "L", "LA", "P"):
-                im = im.convert("RGBA")
-            kw = {"quality": 90} if fmt in ("jpg", "webp") else {}
-            im.save(out, {"jpg": "JPEG", "png": "PNG", "webp": "WEBP",
-                          "pdf": "PDF"}[fmt], **kw)
-            done.append(out)
-    return done
-
+# -- video --------------------------------------------------------
 
 def video_to_mp4(ffmpeg, src):
     base = os.path.splitext(os.path.basename(src))[0]
-    out = common.into("conv", base + ".mp4")
+    out = common.into("rec", base + ".mp4")
     args = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", src,
             "-c:v", "libx264", "-preset", "medium", "-crf", "23",
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k",
@@ -409,7 +421,7 @@ PASSWORD = {"kind": "password", "key": "password", "optional": True,
             "label": "Lock with a password (AES-256)"}
 
 _PDF = {
-    "to_pdf": ("Files to PDF", "Make PDF"),
+    "to_pdf": ("Convert to PDF", "Convert"),
     "merge": ("Merge PDFs", "Merge"),
     "split": ("Split PDF", "Split"),
     "compress": ("Compress PDF", "Compress"),
@@ -419,7 +431,7 @@ _PDF = {
 
 def pdf_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
     if action == "to_pdf":
-        files = common.pick_files(ctrl, "Files to put in one PDF",
+        files = common.pick_files(ctrl, "Files to turn into PDF",
                                   TO_PDF_TYPES, selection=selection)
     elif action in ("split", "compress", "lock"):
         files = common.pick_files(ctrl, "Choose a PDF", PDF_TYPES, many=False,
@@ -439,7 +451,20 @@ def pdf_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
 
     def start(values):
         password = values.get("password", "")
-        if action == "to_pdf":
+        if action == "to_pdf" and values.get("how") == "each":
+            def work(p):
+                made = []
+                for n, f in enumerate(files):
+                    name = os.path.splitext(os.path.basename(f))[0]
+                    one = common.into("pdf", name + ".pdf")
+
+                    def step(frac, text=None, n=n, f=f):
+                        p((n + (frac or 0)) / float(len(files)),
+                          text or os.path.basename(f))
+
+                    made.append(files_to_pdf([f], one, password, step))
+                return made
+        elif action == "to_pdf":
             name = base + ".pdf" if len(files) == 1 else \
                 "Combined %s.pdf" % common.stamp()
             out = common.into("pdf", name)
@@ -463,6 +488,10 @@ def pdf_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
                 return lock_pdf(first, out, password)
 
         def finish(result):
+            if isinstance(result, list):
+                return ("Made %d PDFs" % len(result)
+                        + (" with a password" if password else ""),
+                        common.squint_dir("pdf"))
             if action == "compress":
                 return ("%.1f MB → %.1f MB" % (os.path.getsize(first) / 1e6,
                                                os.path.getsize(result) / 1e6),
@@ -472,9 +501,15 @@ def pdf_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
             return "PDF saved" + (" with a password" if password else ""), \
                 result
 
-        card.run(work, finish, "%s…" % verb.replace("Make PDF", "Making PDF"))
+        card.run(work, finish, "%s…" % verb.replace("Convert", "Converting"))
 
-    card.form([pw], verb, start)
+    fields = [pw]
+    if action == "to_pdf" and len(files) > 1:
+        fields.insert(0, {"kind": "choice", "key": "how", "label": "Make",
+                          "options": (("one", "One PDF"),
+                                      ("each", "A PDF for each")),
+                          "default": "one"})
+    card.form(fields, verb, start)
 
 
 def zip_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
@@ -550,19 +585,13 @@ def zip_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
               "Zip", start)
 
 
-IMAGE_FORMATS = (("png", "PNG"), ("jpg", "JPG"), ("webp", "WebP"),
-                 ("pdf", "PDF"))
-IMAGE_SIZES = (("0", "Same"), ("3840", "3840"), ("1920", "1920"),
-               ("1280", "1280"), ("800", "800"))
-
-
 def video_to_mp4_mac(src):
     """macOS's own converter (avconvert), so nothing has to be fetched."""
     if not shutil.which("avconvert"):
         raise RuntimeError("this Mac has no video converter (avconvert); "
                            "install FFmpeg to convert videos")
     base = os.path.splitext(os.path.basename(src))[0]
-    out = common.into("conv", base + ".mp4")
+    out = common.into("rec", base + ".mp4")
     done = common.run(["avconvert", "--source", src, "--output", out,
                        "--preset", "PresetHighestQuality", "--replace"],
                       timeout=6 * 3600)
@@ -572,65 +601,30 @@ def video_to_mp4_mac(src):
     return out
 
 
-def convert_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
-    if action == "image":
-        files = common.pick_files(
-            ctrl, "Pictures to convert",
-            [("Pictures", " ".join("*" + e for e in IMAGE_EXT))],
-            selection=selection)
-        if not files:
-            return
-        card = Card(ctrl, "Convert pictures", anchor, _subtitle(files), host=menu)
+def video_cmd(ctrl, selection=None, anchor=None, menu=None, **_):
+    """Any common video as MP4, saved beside the recordings."""
+    files = common.pick_files(
+        ctrl, "Video to convert",
+        [("Videos", " ".join("*" + e for e in VIDEO_EXT)),
+         ("All files", "*.*")],
+        many=False, selection=selection)
+    if not files:
+        return
+    card = Card(ctrl, "Video to MP4", anchor, _subtitle(files), host=menu)
 
-        def start(values):
-            size = int(values["size"]) or None
-            card.run(lambda p: convert_images(files, values["fmt"], size,
-                                              progress=p),
-                     lambda out: ("Converted " + _n(out, "picture"), out[0]),
-                     "Converting…")
-
-        card.form([{"kind": "choice", "key": "fmt", "label": "Save as",
-                    "options": IMAGE_FORMATS, "default": "jpg"},
-                   {"kind": "choice", "key": "size",
-                    "label": "Longest side (pixels)",
-                    "options": IMAGE_SIZES, "default": "0"}],
-                  "Convert", start)
-    elif action == "office":
-        files = common.pick_files(
-            ctrl, "Office files to turn into PDF",
-            [("Office files", " ".join("*" + e for e in OFFICE_EXT))],
-            selection=selection)
-        if not files:
-            return
-        card = Card(ctrl, "Office to PDF", anchor, _subtitle(files), host=menu)
-
-        def work(p):
-            out = []
-            for n, f in enumerate(files):
-                p(n / float(len(files)), os.path.basename(f))
-                out.append(office_to_pdf(f))
-            return out
-
-        card.run(work, lambda out: ("Converted " + _n(out), out[0]),
-                 "Converting to PDF…")
-    else:
-        files = common.pick_files(
-            ctrl, "Video to convert",
-            [("Videos", " ".join("*" + e for e in VIDEO_EXT))],
-            many=False, selection=selection)
-        if not files:
-            return
-        card = Card(ctrl, "Video to MP4", anchor, _subtitle(files), host=menu)
-
-        def work(p):
-            if common.IS_MAC and not common.ffmpeg_path():
-                p(None, "Converting the video")
-                return video_to_mp4_mac(files[0])
+    def work(p):
+        try:
             ffmpeg = ensure_tool(p, "ffmpeg")
+        except Exception:
+            if not common.IS_MAC:
+                raise
+            # No download: the Mac's own converter still does MOV and M4V.
             p(None, "Converting the video")
-            return video_to_mp4(ffmpeg, files[0])
+            return video_to_mp4_mac(files[0])
+        p(None, "Converting the video")
+        return video_to_mp4(ffmpeg, files[0])
 
-        card.run(work, lambda out: ("Converted to MP4", out), "Converting…")
+    card.run(work, lambda out: ("Converted to MP4", out), "Converting…")
 
 
 def extract_cmd(ctrl, action, selection=None, anchor=None, menu=None, **_):
