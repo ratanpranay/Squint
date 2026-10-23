@@ -1,4 +1,4 @@
-Squint 1.56.0
+Squint 1.57.0
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,19 @@ was wrong, not only that it was.
 
 
 
+
+1.57.0
+
+  - Ring is eight tools; angle step is 360/len(tools), digit keys 1..len.
+    Convert removed: Office/pictures go through PDF > Convert to PDF
+    (files_to_pdf, "one" or "each"), video through Record > Video to MP4
+    (docs.video_cmd, saved in Recordings). convert_images and the image
+    form are gone.
+  - Mac: office_to_pdf exports through Pages/Keynote/Numbers by AppleScript
+    before trying LibreOffice. FFmpeg for the Mac comes from Martin Riedl's
+    static builds (redirect/latest/macos/{arm64,amd64}/release/ffmpeg.zip);
+    avconvert stays the fallback if that download fails.
+  - Phone via QR rows use words, not arrows: not every font has U+2192.
 
 1.56.0
 
