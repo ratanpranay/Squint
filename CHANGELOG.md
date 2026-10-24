@@ -48,8 +48,8 @@ it, so there is exactly one copy to keep true.
 
 ### Added
 
-- **Mac disk images built automatically** with every release, for Apple
-  Silicon and Intel Macs.
+- **Mac disk image built automatically** with every release (Apple
+  Silicon Macs).
 - **Week numbers in the calendar**: a "Wk" column beside every week, and
   the week number next to the chosen day.
 

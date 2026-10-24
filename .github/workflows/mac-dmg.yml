@@ -1,4 +1,4 @@
-# Squint-<version>-arm64.dmg and Squint-<version>-intel.dmg, built on
+# Squint-<version>-arm64.dmg, for Apple Silicon Macs only, built on
 # GitHub's own Macs with tools/make_dmg.command.
 #
 # Run by the Release workflow for every release (attached to it), or by
@@ -25,11 +25,7 @@ permissions:
 
 jobs:
   dmg:
-    strategy:
-      fail-fast: false
-      matrix:
-        runner: [macos-14, macos-15-intel]
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-14            # Apple Silicon
     steps:
       - uses: actions/checkout@v4
 
@@ -40,7 +36,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dmg-${{ matrix.runner }}
+          name: dmg-apple-silicon
           path: dist-dmg/*.dmg
           compression-level: 0
 
