@@ -98,7 +98,10 @@ def _tool_list():
               ("Receive from nearby device", send.receive_cmd, False, PANEL),
               ("Phone via QR", send.phone_cmd, True, PANEL)],
              "Same Wi-Fi only. Received files: "
-             "Downloads\\Squint\\Received.", top=send.name_row),
+             "Downloads\\Squint\\Received.", top=send.name_row,
+             top_label=lambda: "Your name: %s  ·  Change" % send.device_name(),
+             top_title="Your name on Wi-Fi",
+             top_note="Nearby computers and phones see you by this name."),
         tool("cal", "Calendar", "Calendar", "", [],
              view=calendar_view.build, wide=True),
         tool("ext", "Extract", "Extract media", "",

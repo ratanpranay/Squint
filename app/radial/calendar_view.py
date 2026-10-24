@@ -349,3 +349,25 @@ class CalendarPanel:
     def remove(self, index):
         remove(_view["day"], index)
         self.render()
+
+
+def next_item(now=None):
+    """The next thing on the agenda, short, for the middle of the ring:
+    a timed item later today, else anything left today, else the first
+    item tomorrow. "" when there is nothing."""
+    now = now or dt.datetime.now()
+    data = load()
+    today = data.get(now.date().isoformat(), [])
+    clock = now.strftime("%H:%M")
+    for item in today:
+        if item.get("time") and item["time"] >= clock:
+            return "%s %s" % (item["time"], item["text"])
+    for item in today:
+        if not item.get("time"):
+            return "Today: %s" % item["text"]
+    tomorrow = data.get((now.date() + dt.timedelta(days=1)).isoformat(), [])
+    if tomorrow:
+        item = tomorrow[0]
+        return "Tomorrow %s%s" % (item["time"] + " " if item.get("time")
+                                  else "", item["text"])
+    return ""

@@ -9,7 +9,8 @@ the screen stays clickable.
 
 The panel is a real Tk frame placed on the canvas. It shows one view at a
 time:
-  list      a tool's actions (hovering another tool switches)
+  list      a tool's actions, drawn as pills that bloom out of the ring
+            beside the tool (the panel itself is hidden)
   calendar  shown on hover, hidden once the mouse has left it
   pinned    anything the user is in the middle of: settings, progress, the
             QR code, the camera. Hovering does not switch away from it and
@@ -69,6 +70,16 @@ class RadialMenu:
             pass
         self.s = s = max(1.0, scale)
         left, top, width, height = mon
+        self.bloom = []             # (x0, y0, x1, y1, j) of the action pills
+        self._bloom_hover = None
+        self._clock_text = None
+
+        margin = 215 * s
+        self.cx = min(max(px - left, margin), width - margin)
+        # Room above the ring for the support line.
+        self.cy = min(max(py - top, margin + 40 * s), height - margin)
+        # Taken before the window exists, so the ring is not in it.
+        self._glass = self._backdrop()
 
         win = self.win = tk.Toplevel(root)
         win.overrideredirect(True)
@@ -97,11 +108,6 @@ class RadialMenu:
                                 highlightthickness=0, bd=0)
         self.canvas.pack()
 
-        margin = 215 * s
-        self.cx = min(max(px - left, margin), width - margin)
-        # Room above the ring for the support line.
-        self.cy = min(max(py - top, margin + 40 * s), height - margin)
-
 
         # The panel: a border frame holding a padded content frame.
         self.panel_outer = tk.Frame(self.canvas, bg=ITEM_LINE)
@@ -123,6 +129,7 @@ class RadialMenu:
         win.bind("<FocusOut>", self._focus_out)
         win.after(10, self._take_focus)
         win.after(150, self._watch_pointer)
+        win.after(5000, self._tick_clock)
 
     # -- sizes ---------------------------------------------------------------
 
@@ -167,6 +174,50 @@ class RadialMenu:
         r = 150 * self.s
         return self.cx + r * math.cos(a), self.cy + r * math.sin(a), a
 
+    def _backdrop(self):
+        """Frosted glass: what is on screen under the ring, blurred and
+        tinted, as the ring's own background. None if the screen cannot be
+        read (the ring is then plain)."""
+        try:
+            import mss
+            from PIL import Image, ImageDraw, ImageFilter
+            s = self.s
+            r = int(round(200 * s))
+            left = int(self.mon[0] + self.cx - r)
+            top = int(self.mon[1] + self.cy - r)
+            with mss.mss() as grab:
+                shot = grab.grab({"left": left, "top": top,
+                                  "width": 2 * r, "height": 2 * r})
+            img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
+            # Small, blurred, back up: smooth and quick on any screen.
+            small = img.resize((max(8, r // 3), max(8, r // 3)),
+                               Image.BILINEAR)
+            small = small.filter(ImageFilter.GaussianBlur(3))
+            img = small.resize((2 * r, 2 * r), Image.BICUBIC)
+            from PIL import ImageEnhance
+            img = ImageEnhance.Color(img).enhance(1.5)
+            img = Image.blend(img, Image.new("RGB", img.size, RING_BG), 0.72)
+            mask = Image.new("L", img.size, 0)
+            ImageDraw.Draw(mask).ellipse((0, 0, 2 * r - 1, 2 * r - 1),
+                                         fill=255)
+            img.putalpha(mask)
+            from PIL import ImageTk
+            return ImageTk.PhotoImage(img)
+        except Exception as exc:          # noqa: BLE001 - plain ring then
+            common.log("frosted ring off: %r" % exc)
+            return None
+
+    def _tick_clock(self):
+        """The time in the middle stays current."""
+        if self.closed:
+            return
+        import time
+        if self.selected is None and self.view == "idle" and \
+                not self.heart_hover and \
+                time.strftime("%H:%M") != self._clock_text:
+            self._draw_ring()
+        self.win.after(5000, self._tick_clock)
+
     # -- the ring ------------------------------------------------------------
 
     def _draw_ring(self):
@@ -174,8 +225,15 @@ class RadialMenu:
         c.delete("ring")
         cx, cy = self.cx, self.cy
         r = 200 * s
-        c.create_oval(cx - r, cy - r, cx + r, cy + r, fill=RING_BG,
-                      outline="#343944", width=max(1, int(s)), tags="ring")
+        if self._glass is not None:
+            c.create_image(cx, cy, image=self._glass, tags="ring")
+            c.create_oval(cx - r, cy - r, cx + r, cy + r, fill="",
+                          outline="#4A505C", width=max(1, int(1.5 * s)),
+                          tags="ring")
+        else:
+            c.create_oval(cx - r, cy - r, cx + r, cy + r, fill=RING_BG,
+                          outline="#343944", width=max(1, int(s)),
+                          tags="ring")
         self.item_hits = []
         for i, tool in enumerate(self.tools):
             x, y, _a = self._item_xy(i)
@@ -219,32 +277,72 @@ class RadialMenu:
         else:
             hint = ("1–%d picks a tool · letters pick an action · Esc goes "
                     "back" % len(self.tools))
-        c.create_text(cx, cy + r + 22 * s, text=hint,
-                      fill="#C9CED8", font=self.f(11), tags=("ring", "hint"))
+        hint_id = c.create_text(cx, cy + r + 24 * s, text=hint,
+                                fill="#C9CED8", font=self.f(11),
+                                tags=("ring", "hint"))
+        # On a dark card, so it reads on a white page as well.
+        x0, y0, x1, y1 = c.bbox(hint_id)
+        self._hint_image = self._card_image(x1 - x0 + 24 * s,
+                                            y1 - y0 + 10 * s)
+        c.create_image(x0 - 12 * s, y0 - 5 * s, image=self._hint_image,
+                       anchor="nw", tags=("ring", "hint"))
+        c.tag_raise(hint_id)
+        c.tag_raise("bloom")
         c.tag_raise(self.panel_item)
         self._fit_hint()
 
     def _draw_hub(self):
         c, s, cx, cy = self.canvas, self.s, self.cx, self.cy
-        hr = 64 * s
+        hr = 66 * s
         c.create_oval(cx - hr, cy - hr, cx + hr, cy + hr, fill=HUB_BG,
                       outline=ITEM_LINE, width=max(1, int(s)), tags="ring")
-        # Support, at the top of the hub.
-        hx, hy = cx, cy - 36 * s
+        # Support, at the top of the hub, whatever else it shows.
+        hx, hy = cx, cy - 40 * s
         self.heart_hit = (hx, hy, 14 * s)
         self._heart(hx, hy, (9.5 if self.heart_hover else 8) * s,
                     HEART if self.heart_hover else "#C8546A")
-        if self.heart_hover:
-            title = "Support Squint"
-        elif self.selected is None:
-            title = "Squint"
-        else:
-            title = self.tools[self.selected]["full"]
+        if self.selected is None and not self.heart_hover:
+            self._draw_clock()
+            return
+        title = "Support Squint" if self.heart_hover else \
+            self.tools[self.selected]["full"]
         c.create_text(cx, cy + 2 * s, text=title, fill="#FFFFFF",
                       font=self.f(14, True), width=110 * s, justify="center",
                       tags="ring")
         c.create_text(cx, cy + 30 * s, text=self.shortcut,
                       fill=common.MUTED, font=self.f(11), tags="ring")
+
+    def _draw_clock(self):
+        """The middle when nothing is picked: time, date and week, and the
+        next thing on the agenda."""
+        import datetime as dt
+        c, s, cx, cy = self.canvas, self.s, self.cx, self.cy
+        now = dt.datetime.now()
+        self._clock_text = now.strftime("%H:%M")
+        c.create_text(cx, cy - 10 * s, text=self._clock_text, fill="#FFFFFF",
+                      font=self.f(28, True), tags="ring")
+        c.create_text(cx, cy + 14 * s,
+                      text="%s %d %s  ·  Wk %d" % (now.strftime("%a"),
+                                                   now.day,
+                                                   now.strftime("%b"),
+                                                   now.isocalendar()[1]),
+                      fill="#B9C0CC", font=self.f(11), tags="ring")
+        try:
+            from . import calendar_view
+            nxt = calendar_view.next_item(now)
+        except Exception:
+            nxt = ""
+        text = nxt or "Nothing on the agenda"
+        font = self.f(11)
+        measure = tkfont.Font(font=font).measure
+        room = 108 * s
+        if measure(text) > room:
+            while text and measure(text + "…") > room:
+                text = text[:-1]
+            text = text.rstrip() + "…"
+        c.create_text(cx, cy + 33 * s, text=text,
+                      fill="#F2C94C" if nxt else common.MUTED, font=font,
+                      tags=("ring", "agenda"))
 
     def _pill(self, x0, y0, x1, y1, r, **kw):
         r = min(r, (y1 - y0) / 2.0)
@@ -339,6 +437,9 @@ class RadialMenu:
             pass
         for child in self.panel.winfo_children():
             child.destroy()
+        self.canvas.delete("bloom")
+        self.bloom = []
+        self._bloom_hover = None
 
     def relayout(self):
         """Fit the panel to what is in it, beside the selected tool."""
@@ -374,6 +475,14 @@ class RadialMenu:
         if not box:
             return
         covered = False
+        x0, y0, x1, y1 = box
+        for bx0, by0, bx1, by1, _j in self.bloom:
+            if not (x1 < bx0 or x0 > bx1 or y1 < by0 or y0 > by1):
+                covered = True
+        note = c.bbox("bloom_note_bg")
+        if note and not (x1 < note[0] or x0 > note[2] or
+                         y1 < note[1] or y0 > note[3]):
+            covered = True
         pb = getattr(self, "panel_box", None)
         if pb and c.itemcget(self.panel_item, "state") != "hidden":
             left, top, w, h = pb
@@ -437,19 +546,174 @@ class RadialMenu:
         return b
 
     def show_list(self):
+        """The tool's actions bloom out of the ring beside it, as pills;
+        the panel is only for settings, progress and views."""
         self.clear_panel()
         self.pinned = False
         self.view = "list"
+        self.canvas.itemconfigure(self.panel_item, state="hidden")
+        self.panel_box = None
+        self._draw_bloom()
+        self._fit_hint()
+
+    def _draw_bloom(self):
+        c, s = self.canvas, self.s
         tool = self.tools[self.selected]
-        self.header(self.panel, tool["full"], "key %d" % (self.selected + 1))
-        if tool.get("top"):
-            tool["top"](self, self.panel)
-        for j, (label, _fn, _files, _kind) in enumerate(tool["rows"]):
-            self.row(self.panel, label, lambda j=j: self.run_action(j),
-                     chr(65 + j))
-        if tool.get("note"):
-            self.note(self.panel, tool["note"])
-        self.relayout()
+        items = [(chr(65 + j), label, j)
+                 for j, (label, _f, _u, _k) in enumerate(tool["rows"])]
+        if tool.get("top_label"):
+            items.append(("", tool["top_label"](), "top"))
+        h = int(round(32 * s))
+        step = h + 8 * s
+        # The words first, so each pill is as wide as what is in it.
+        texts = []
+        for key, label, j in items:
+            tag = "bloom_%s" % j
+            special = j == "top"
+            kid = c.create_text(0, 0, text=key, anchor="w", fill="#8A93A3",
+                                font=self.f(11, True),
+                                tags=("bloom", tag, tag + "_key")) \
+                if key else None
+            lid = c.create_text(0, 0, text=label, anchor="w",
+                                fill="#B9C0CC" if special else "#FFFFFF",
+                                font=self.f(12) if special else self.f(13),
+                                tags=("bloom", tag))
+            lx0, _y0, lx1, _y1 = c.bbox(lid)
+            pad = 14 * s
+            inner = (16 * s if key else 0) + (lx1 - lx0)
+            texts.append((kid, lid, int(round(inner + 2 * pad))))
+        _ix, iy, a = self._item_xy(self.selected)
+        co, si = math.cos(a), math.sin(a)
+        _ml, _mt, mw, mh = self.mon
+        rb = 214 * s
+        n = len(items)
+        boxes = []
+        if abs(co) >= 0.3:
+            # Beside the ring: a column that hugs the ring's edge.
+            side = 1 if co > 0 else -1
+            y0 = iy - (n - 1) / 2.0 * step
+            y0 = min(max(y0, 8 * s + h / 2.0),
+                     mh - 60 * s - h / 2.0 - (n - 1) * step)
+            for k, (_kid, _lid, w) in enumerate(texts):
+                y = y0 + k * step
+                dy = y - self.cy
+                edge = math.sqrt(max(rb * rb - dy * dy, 0))
+                x = self.cx + side * edge
+                x0 = x if side > 0 else x - w
+                x0 = min(max(x0, 8 * s), mw - w - 8 * s)
+                boxes.append((x0, y - h / 2.0, x0 + w, y + h / 2.0))
+        else:
+            # Above or below the ring: a column going outwards.
+            for k, (_kid, _lid, w) in enumerate(texts):
+                if si > 0:
+                    y = self.cy + rb + h / 2.0 + k * step
+                else:
+                    y = self.cy - rb - h / 2.0 - (n - 1 - k) * step
+                x0 = min(max(self.cx - w / 2.0, 8 * s), mw - w - 8 * s)
+                boxes.append((x0, y - h / 2.0, x0 + w, y + h / 2.0))
+        self.bloom = []
+        self._bloom_images = {}
+        for (key, label, j), (kid, lid, w), (x0, y0, x1, y1) in zip(
+                items, texts, boxes):
+            tag = "bloom_%s" % j
+            special = j == "top"
+            normal = icons.pill(w, h, common.PANEL if special else ITEM_BG,
+                                "#4A505C")
+            lit = icons.pill(w, h, common.ACCENT, common.ACCENT)
+            self._bloom_images[j] = (normal, lit)
+            c.create_image(x0, y0, image=normal, anchor="nw",
+                           tags=("bloom", tag, tag + "_bg"))
+            c.tag_lower(tag + "_bg", lid)
+            tx = x0 + 14 * s
+            ym = (y0 + y1) / 2.0
+            if kid:
+                c.coords(kid, tx, ym)
+                c.tag_lower(tag + "_bg", kid)
+                tx += 16 * s
+            c.coords(lid, tx, ym)
+            self.bloom.append((x0, y0, x1, y1, j))
+        note = tool.get("note")
+        if note and boxes:
+            width = 280 * s
+            if abs(co) >= 0.3:
+                last = boxes[-1]
+                nx = last[0] + 6 * s if co > 0 else last[2] - 6 * s
+                anchor = "nw" if co > 0 else "ne"
+                ny = last[3] + 12 * s
+            elif si > 0:
+                nx, anchor, ny = self.cx, "n", boxes[-1][3] + 12 * s
+            else:
+                nx, anchor, ny = self.cx, "s", boxes[0][1] - 12 * s
+            text = c.create_text(nx, ny, text=note, anchor=anchor,
+                                 width=width, fill="#C9CED8",
+                                 font=self.f(11), tags=("bloom", "bloom_note"))
+            bx0, by0, bx1, by1 = c.bbox(text)
+            pad_x, pad_y = 10 * s, 6 * s
+            dx = max(0, 8 * s + pad_x - bx0) - \
+                max(0, bx1 + pad_x - (mw - 8 * s))
+            dy = max(0, 8 * s + pad_y - by0) - \
+                max(0, by1 + pad_y - (mh - 8 * s))
+            c.move(text, dx, dy)
+            bx0, by0, bx1, by1 = c.bbox(text)
+            box_w = bx1 - bx0 + 2 * pad_x
+            box_h = by1 - by0 + 2 * pad_y
+            # A rounded card, not a pill: the note can be two lines.
+            self._note_image = self._card_image(box_w, box_h)
+            c.create_image(bx0 - pad_x, by0 - pad_y, image=self._note_image,
+                           anchor="nw", tags=("bloom", "bloom_note_bg"))
+            c.tag_lower("bloom_note_bg", text)
+        for _x0, _y0, _x1, _y1, j in self.bloom:
+            tag = "bloom_%s" % j
+            c.tag_bind(tag, "<Enter>",
+                       lambda _e: c.configure(cursor="hand2"))
+            c.tag_bind(tag, "<Leave>", lambda _e: c.configure(cursor=""))
+        c.tag_raise("bloom")
+        c.tag_raise(self.panel_item)
+
+    def _card_image(self, w, h):
+        from PIL import Image, ImageDraw, ImageTk
+        k = 4
+        w, h = int(round(w)), int(round(h))
+        img = Image.new("RGBA", (w * k, h * k), (0, 0, 0, 0))
+        ImageDraw.Draw(img).rounded_rectangle(
+            (0, 0, w * k - 1, h * k - 1), int(10 * self.s * k),
+            fill=(17, 19, 26, 255))
+        return ImageTk.PhotoImage(img.resize((w, h), Image.LANCZOS))
+
+    def _hit_bloom(self, x, y):
+        for x0, y0, x1, y1, j in self.bloom:
+            if x0 <= x <= x1 and y0 <= y <= y1:
+                return j
+        return None
+
+    def _paint_bloom(self, j):
+        if j == self._bloom_hover:
+            return
+        c = self.canvas
+        images = getattr(self, "_bloom_images", {})
+        for old, on in ((self._bloom_hover, False), (j, True)):
+            if old is None or old not in images:
+                continue
+            tag = "bloom_%s" % old
+            c.itemconfigure(tag + "_bg", image=images[old][1 if on else 0])
+            c.itemconfigure(tag + "_key", fill="#DCE6FF" if on
+                            else "#8A93A3")
+        self._bloom_hover = j
+
+    def _bloom_pick(self, j):
+        if j == "top":
+            tool = self.tools[self.selected]
+
+            def build(frame):
+                self.header(frame, tool.get("top_title", "Settings"),
+                            close=True)
+                tool["top"](self, frame)
+                if tool.get("top_note"):
+                    self.note(frame, tool["top_note"])
+
+            self.show_view(build, pinned=True, name="top")
+            return
+        self.run_action(j)
 
     def show_view(self, builder, pinned=True, name="custom"):
         """Replace the panel's content with `builder(frame)`."""
@@ -524,6 +788,9 @@ class RadialMenu:
             self.heart_hover = heart
             self._draw_ring()
             self.canvas.configure(cursor="hand2" if heart else "")
+        if self.bloom:
+            j = self._hit_bloom(e.x, e.y)
+            self._paint_bloom(j)
         if self.pinned or self.view == "support":
             return
         i = self._hit_item(e.x, e.y)
@@ -538,6 +805,10 @@ class RadialMenu:
                 return
         if self._on_heart(e.x, e.y):
             self.support()
+            return
+        j = self._hit_bloom(e.x, e.y) if self.bloom else None
+        if j is not None:
+            self._bloom_pick(j)
             return
         i = self._hit_item(e.x, e.y)
         if i is not None:
@@ -702,6 +973,8 @@ class RadialMenu:
         x, y = px - self.mon[0], py - self.mon[1]
         r = 200 * self.s
         if (x - self.cx) ** 2 + (y - self.cy) ** 2 <= r * r:
+            return True
+        if self.bloom and self._hit_bloom(x, y) is not None:
             return True
         if self.canvas.itemcget(self.panel_item, "state") != "hidden":
             left, top, w, h = getattr(self, "panel_box", None) or (0, 0, 0, 0)

@@ -22,6 +22,18 @@ it, so there is exactly one copy to keep true.
 
 ## Unreleased
 
+### Changed
+
+- **Frosted-glass ring**: what is behind the ring shows through, blurred.
+- **Actions bloom out of the ring**: picking a tool shows its actions as
+  pills right beside it (click, or press the letter). The panel now only
+  opens for settings, progress, the calendar and the QR code. Transfers
+  shows your name as a pill; click it to change it.
+- **Live centre**: when nothing is picked, the middle shows the time, the
+  date, the week number and your next appointment. The ♥ stays on top.
+- The key hint under the ring sits on a dark card, so it reads on white
+  pages too.
+
 ### Added
 
 - **Week numbers in the calendar**: a "Wk" column beside every week, and

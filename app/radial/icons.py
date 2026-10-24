@@ -95,3 +95,33 @@ def draw(canvas, key, cx, cy, size, colour, tags=()):
     canvas.create_image(cx, cy, image=photo, tags=tags)
     return photo
 
+
+
+_pills = {}
+
+
+def pill(width, height, fill, outline=None):
+    """A smooth rounded pill (anti-aliased, unlike Tk's own shapes on
+    Windows) as a Tk image, `width` x `height` px."""
+    from PIL import Image, ImageDraw, ImageTk
+    w, h = max(4, int(round(width))), max(4, int(round(height)))
+    key = (w, h, fill, outline)
+    photo = _pills.get(key)
+    if photo is not None:
+        return photo
+    k = OVERSAMPLE
+    img = Image.new("RGBA", (w * k, h * k), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    r = h * k // 2
+    if outline:
+        d.rounded_rectangle((0, 0, w * k - 1, h * k - 1), r, fill=outline)
+        d.rounded_rectangle((k, k, w * k - 1 - k, h * k - 1 - k), r - k,
+                            fill=fill)
+    else:
+        d.rounded_rectangle((0, 0, w * k - 1, h * k - 1), r, fill=fill)
+    img = img.resize((w, h), Image.LANCZOS)
+    # On Windows the soft edge blends towards the see-through key colour
+    # (near black): a hairline of dark, invisible against the dark pills.
+    photo = ImageTk.PhotoImage(img)
+    _pills[key] = photo
+    return photo
