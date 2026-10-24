@@ -1,4 +1,4 @@
-Squint 1.59.0
+Squint 1.60.0
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,18 @@ was wrong, not only that it was.
 
 
 
+
+1.60.0
+
+  - Translate slot is now Tools (app/radial/tools.py): Open Downloads,
+    Calculator, Squint. Copy text (OCR) moved to Capture.
+  - Calculator parses with ast and evaluates only numbers and + - * / %
+    ** // (pow exponent capped); decimal comma, trailing % as /100.
+    Round PillButtons (new outline/height options) in the ring's theme.
+    On a Mac the calculator brings Squint forward so keys reach it.
+  - Mac: no lift() when the ring opens, and _reopened ignores macOS's
+    "show the main window" while the ring is up or just closed
+    (RadialMenu.recently_active).
 
 1.59.0
 
