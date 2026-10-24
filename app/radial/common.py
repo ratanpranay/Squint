@@ -559,7 +559,7 @@ class PillButton(tk.Canvas):
     def __init__(self, parent, text="", command=None, bg=None, fg=None,
                  activebackground=None, activeforeground=None, font=None,
                  padx=16, pady=7, anchor="center", width=None, mark=None,
-                 **kw):
+                 outline=None, height=None, **kw):
         for k in self._IGNORED:
             kw.pop(k, None)
         try:
@@ -572,7 +572,7 @@ class PillButton(tk.Canvas):
                    "abg": activebackground, "afg": activeforeground,
                    "font": font or (FONT, -12), "padx": padx, "pady": pady,
                    "anchor": anchor, "width": width, "state": "normal",
-                   "mark": mark}
+                   "mark": mark, "outline": outline, "height": height}
         self._command = command
         self._hover = False
         self._drawn = None
@@ -591,7 +591,7 @@ class PillButton(tk.Canvas):
     def _size(self):
         tw, th = self._metrics()
         w = self._o["width"] or tw + 2 * int(self._o["padx"])
-        h = th + 2 * int(self._o["pady"])
+        h = self._o["height"] or th + 2 * int(self._o["pady"])
         tk.Canvas.configure(self, width=w, height=h)
         self._want = (w, h)
 
@@ -623,7 +623,8 @@ class PillButton(tk.Canvas):
         self.create_rectangle(r, 0, w - r, h, fill=fill, outline="")
         try:
             from . import icons
-            self._img = icons.pill(w, h, fill, None, master=self)
+            self._img = icons.pill(w, h, fill, self._o["outline"],
+                                   master=self)
             self.create_image(0, 0, image=self._img, anchor="nw")
         except Exception:
             pass

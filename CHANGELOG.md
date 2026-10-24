@@ -31,7 +31,9 @@ it, so there is exactly one copy to keep true.
 
 ### Added
 
-- **Calculator** in the panel: type or tap, the answer shows as you go;
+- **Calculator** in the ring's own style (round keys like the tools,
+  signs in the tool's colour); the keyboard and number pad type straight
+  into it while it is open. Type or tap, the answer shows as you go;
   + − × ÷ % ^ and brackets, decimal commas too. The last five sums stay;
   click one to use (and copy) its answer.
 

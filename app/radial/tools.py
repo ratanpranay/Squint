@@ -120,15 +120,19 @@ def calculator(ctrl, menu=None, **_):
     def build(frame):
         s = menu.s
         menu.header(frame, "Calculator", close=True)
+        th = menu.th
+        colour = menu.tools[menu.selected].get("colour", common.ACCENT) \
+            if menu.selected is not None else common.ACCENT
         var = tk.StringVar()
-        entry = tk.Entry(frame, textvariable=var, bg=common.ROW,
+        # The sum floats on the panel, like the time in the ring.
+        entry = tk.Entry(frame, textvariable=var, bg=common.PANEL,
                          fg=common.TITLE, relief="flat", highlightthickness=0,
-                         insertbackground=common.TEXT, justify="right",
-                         font=menu.f(20))
-        entry.pack(fill="x", ipady=int(8 * s))
-        result = tk.Label(frame, text=" ", bg=common.PANEL, fg=common.MUTED,
+                         bd=0, insertbackground=colour, justify="right",
+                         font=menu.f(26, True))
+        entry.pack(fill="x", ipady=int(2 * s))
+        result = tk.Label(frame, text=" ", bg=common.PANEL, fg=colour,
                           font=menu.f(15, True), anchor="e")
-        result.pack(fill="x", pady=(int(4 * s), int(8 * s)))
+        result.pack(fill="x", pady=(0, int(8 * s)))
 
         def update(*_a):
             value = calculate(var.get())
@@ -167,31 +171,36 @@ def calculator(ctrl, menu=None, **_):
         entry.bind("<KP_Enter>", equals)
 
         pad = tk.Frame(frame, bg=common.PANEL)
-        pad.pack(fill="x")
+        pad.pack()
         keys = (("C", "Del", "%", "÷"),
                 ("7", "8", "9", "×"),
                 ("4", "5", "6", "−"),
                 ("1", "2", "3", "+"),
                 ("(", ")", "0", "."))
-        colour = menu.tools[menu.selected].get("colour", common.ACCENT) \
-            if menu.selected is not None else common.ACCENT
+        size = int(56 * s)
+        # Round keys, like the tools in the ring: digits in the ring's
+        # text colour, signs in the tool's colour.
         for r, row in enumerate(keys):
             for c, key in enumerate(row):
-                pad.columnconfigure(c, weight=1, uniform="key")
-                op = key in ("÷", "×", "−", "+", "%", "C", "Del")
-                eq = False
+                sign = key in ("÷", "×", "−", "+", "%")
+                quiet = key in ("C", "Del")
                 b = common.PillButton(
                     pad, text=key, command=lambda k=key: press(k),
-                    bg=colour if eq else (common.LINE if op else common.ROW),
-                    fg="#FFFFFF" if eq else common.TEXT,
-                    font=menu.f(15, eq), padx=int(4 * s), pady=int(8 * s))
-                b.grid(row=r, column=c, sticky="nsew", padx=int(3 * s),
-                       pady=int(3 * s))
+                    bg=th["item"], outline=th["item_line"],
+                    fg=colour if sign else (th["sub"] if quiet
+                                            else th["label"]),
+                    activebackground=colour, activeforeground="#FFFFFF",
+                    font=menu.f(17 if sign else 15, sign),
+                    width=size, height=size, padx=0, pady=0)
+                b.grid(row=r, column=c, padx=int(4 * s), pady=int(4 * s))
         common.PillButton(pad, text="=", command=equals, bg=colour,
-                          fg="#FFFFFF", font=menu.f(15, True),
-                          padx=int(4 * s), pady=int(8 * s)).grid(
-            row=len(keys), column=0, columnspan=4, sticky="nsew",
-            padx=int(3 * s), pady=int(3 * s))
+                          fg="#FFFFFF", activebackground=common._mix(
+                              colour, "#000000", 0.12),
+                          activeforeground="#FFFFFF",
+                          font=menu.f(17, True), width=4 * size + 24 * s,
+                          height=int(46 * s), padx=0, pady=0).grid(
+            row=len(keys), column=0, columnspan=4, padx=int(4 * s),
+            pady=(int(6 * s), int(4 * s)))
 
         lines = tk.Frame(frame, bg=common.PANEL)
         lines.pack(fill="x", pady=(int(6 * s), 0))
@@ -221,6 +230,23 @@ def calculator(ctrl, menu=None, **_):
             menu.relayout()
 
         draw_history()
+        # Typing, the number pad included, goes straight into the sum.
+        if common.IS_MAC:
+            # A Mac only gives keys to the app in front: bring Squint
+            # forward while the calculator is open (the main window is not
+            # shown for it), and the ring hands the front back on close.
+            try:
+                from AppKit import NSApplication
+                NSApplication.sharedApplication() \
+                    .activateIgnoringOtherApps_(True)
+            except Exception:
+                pass
+        try:
+            menu.win.focus_force()
+        except tk.TclError:
+            pass
         entry.focus_set()
+        entry.icursor("end")
+        menu.win.after(150, entry.focus_set)
 
     menu.show_view(build, pinned=True, name="calculator")
