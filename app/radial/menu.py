@@ -154,6 +154,8 @@ class RadialMenu:
         win.after(10, self._take_focus)
         win.after(150, self._watch_pointer)
         win.after(5000, self._tick_clock)
+        self._beat_step = 0
+        win.after(900, self._beat)
 
     # -- sizes ---------------------------------------------------------------
 
@@ -250,6 +252,32 @@ class RadialMenu:
             img = img.filter(ImageFilter.GaussianBlur(3))
             cache[key] = icons.to_tk(img, self.canvas)
         return cache[key]
+
+    # A heartbeat, now and then: two quick beats and a soft ring spreading
+    # out from the heart, so it reads as something to click.
+    _BEAT = ((1.00, 0.00, 70), (1.22, 0.15, 70), (1.05, 0.35, 70),
+             (1.16, 0.55, 70), (1.00, 0.75, 70), (1.00, 1.00, 1700))
+
+    def _beat(self):
+        if self.closed:
+            return
+        c, s = self.canvas, self.s
+        hit = getattr(self, "heart_hit", None)
+        scale, ring, delay = self._BEAT[self._beat_step]
+        self._beat_step = (self._beat_step + 1) % len(self._BEAT)
+        c.delete("heartfx")
+        if hit and not self.heart_hover and self.view != "support":
+            hx, hy, _r = hit
+            c.delete("heart")
+            self._heart(hx, hy, 8 * s * scale, self.th["heart"])
+            if ring < 1.0:
+                rr = (11 + 13 * ring) * s
+                tone = common._mix(HEART, self.th["glass"], 0.35 + 0.6 * ring)
+                c.create_oval(hx - rr, hy - rr - 1 * s, hx + rr,
+                              hy + rr - 1 * s, outline=tone,
+                              width=max(1, int(1.5 * s)), tags="heartfx")
+                c.tag_lower("heartfx", "heart")
+        self.win.after(delay, self._beat)
 
     def _tick_clock(self):
         """The time in the middle stays current."""
@@ -368,12 +396,15 @@ class RadialMenu:
         if self.selected is None and not self.heart_hover:
             self._draw_clock()
             return
-        title = "Support Squint" if self.heart_hover else \
-            self.tools[self.selected]["full"]
-        c.create_text(cx, cy + 2 * s, text=title, fill=self.th["title"],
+        if self.heart_hover:
+            title, sub = "Donate", "Support Squint"
+        else:
+            title, sub = self.tools[self.selected]["full"], self.shortcut
+        c.create_text(cx, cy + 2 * s, text=title,
+                      fill=HEART if self.heart_hover else self.th["title"],
                       font=self.f(14, True), width=110 * s, justify="center",
                       tags="ring")
-        c.create_text(cx, cy + 30 * s, text=self.shortcut,
+        c.create_text(cx, cy + 30 * s, text=sub,
                       fill=self.th["sub"], font=self.f(11), tags="ring")
 
     def _draw_clock(self):
@@ -417,7 +448,7 @@ class RadialMenu:
                x0, y0 + r, x0, y0]
         return self.canvas.create_polygon(pts, smooth=True, outline="", **kw)
 
-    def _heart(self, x, y, size, colour):
+    def _heart(self, x, y, size, colour, tags=("ring", "heart")):
         """A heart drawn as a shape, so it looks the same on every PC."""
         points = []
         for k in range(48):
@@ -427,7 +458,7 @@ class RadialMenu:
                   - 2 * math.cos(3 * t) - math.cos(4 * t))
             points += [x + hx * size / 16.0, y - hy * size / 16.0]
         self.canvas.create_polygon(points, fill=colour, outline="",
-                                   smooth=True, tags="ring")
+                                   smooth=True, tags=tags)
 
     def _draw_qr(self):
         """A round QR code (dots on a white disc) fills the middle of the
