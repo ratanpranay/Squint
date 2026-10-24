@@ -25,6 +25,48 @@ LINE = "#3A404C"
 TEXT = "#E8EAF0"
 MUTED = "#A9AFBC"
 ACCENT = "#3D7BF5"
+TITLE = "#FFFFFF"       # headings
+FAINT = "#5F6676"       # days outside the month, "Wk"
+DIM = "#7D8597"         # week numbers
+ERROR = "#F28B82"
+GOOD = "#5FD38D"
+LINK = "#8FB4FF"
+WARN_BG = "#3A3320"
+WARN_FG = "#F5D58A"
+ON_ACCENT = "#FFFFFF"   # text on the accent colour
+BUTTON_TEXT = "#FFFFFF"  # text on a plain (ROW) button
+
+_DARK = dict(BG="#1E2129", PANEL="#262A33", ROW="#2C3240", LINE="#3A404C",
+             TEXT="#E8EAF0", MUTED="#A9AFBC", TITLE="#FFFFFF",
+             FAINT="#5F6676", DIM="#7D8597", ERROR="#F28B82",
+             GOOD="#5FD38D", LINK="#8FB4FF", WARN_BG="#3A3320",
+             WARN_FG="#F5D58A", BUTTON_TEXT="#FFFFFF")
+_LIGHT = dict(BG="#F3F4F7", PANEL="#FAFAFC", ROW="#ECEEF2", LINE="#DCDFE5",
+              TEXT="#1E2129", MUTED="#5B6270", TITLE="#111318",
+              FAINT="#A3A9B5", DIM="#8A919E", ERROR="#C5221F",
+              GOOD="#188038", LINK="#1A5FD6", WARN_BG="#FFF4D6",
+              WARN_FG="#7A5600", BUTTON_TEXT="#1E2129")
+
+
+def _mix(a, b, f):
+    pa = [int(a[k:k + 2], 16) for k in (1, 3, 5)]
+    pb = [int(b[k:k + 2], 16) for k in (1, 3, 5)]
+    return "#%02X%02X%02X" % tuple(int(round(x + (y - x) * f))
+                                   for x, y in zip(pa, pb))
+
+
+def apply_theme(light, panel=None):
+    """Light or dark for every panel, card, toast and bar. `panel` (a
+    #RRGGBB) is the colour of the ring's glass, so the panel beside it is
+    the same tone; the row and line colours follow from it."""
+    palette = dict(_LIGHT if light else _DARK)
+    if panel:
+        palette["PANEL"] = panel
+        towards = "#000000" if light else "#FFFFFF"
+        palette["ROW"] = _mix(panel, towards, 0.07 if light else 0.08)
+        palette["LINE"] = _mix(panel, towards, 0.14 if light else 0.16)
+        palette["BG"] = panel
+    globals().update(palette)
 FONT = "Segoe UI" if IS_WINDOWS else ("Helvetica Neue" if IS_MAC
                                       else "Helvetica")
 
@@ -504,10 +546,153 @@ class FlatButton(tk.Label):
         return self._command()
 
 
+class PillButton(tk.Canvas):
+    """A pill-shaped button: a smooth rounded shape with the words on it.
+    Takes the options the panels give a tk.Button (bg, fg, font, padx,
+    pady, command, state, active colours); the shape is redrawn to
+    whatever size it is given."""
+
+    _IGNORED = ("relief", "bd", "highlightthickness", "cursor",
+                "activebackground", "activeforeground", "justify",
+                "wraplength", "borderwidth", "overrelief")
+
+    def __init__(self, parent, text="", command=None, bg=None, fg=None,
+                 activebackground=None, activeforeground=None, font=None,
+                 padx=16, pady=7, anchor="center", width=None, mark=None,
+                 **kw):
+        for k in self._IGNORED:
+            kw.pop(k, None)
+        try:
+            under = parent.cget("bg")
+        except tk.TclError:
+            under = PANEL
+        super().__init__(parent, bg=under, highlightthickness=0, bd=0,
+                         cursor="hand2")
+        self._o = {"text": text, "bg": bg or ROW, "fg": fg or TEXT,
+                   "abg": activebackground, "afg": activeforeground,
+                   "font": font or (FONT, -12), "padx": padx, "pady": pady,
+                   "anchor": anchor, "width": width, "state": "normal",
+                   "mark": mark}
+        self._command = command
+        self._hover = False
+        self._drawn = None
+        self.bind("<Enter>", lambda _e: self._set_hover(True))
+        self.bind("<Leave>", lambda _e: self._set_hover(False))
+        self.bind("<Button-1>", lambda _e: self.invoke())
+        self.bind("<Configure>", self._resized)
+        self._size()
+        self._draw()
+
+    def _metrics(self):
+        import tkinter.font as tkfont
+        f = tkfont.Font(font=self._o["font"])
+        return f.measure(self._o["text"]), f.metrics("linespace")
+
+    def _size(self):
+        tw, th = self._metrics()
+        w = self._o["width"] or tw + 2 * int(self._o["padx"])
+        h = th + 2 * int(self._o["pady"])
+        tk.Canvas.configure(self, width=w, height=h)
+        self._want = (w, h)
+
+    def _resized(self, e):
+        if self._drawn != (e.width, e.height):
+            self._draw(e.width, e.height)
+
+    def _colours(self):
+        o = self._o
+        if o["state"] == "disabled":
+            return ROW, MUTED
+        if self._hover:
+            return (o["abg"] or _mix(o["bg"], "#FFFFFF", 0.12),
+                    o["afg"] or o["fg"])
+        return o["bg"], o["fg"]
+
+    def _draw(self, w=None, h=None):
+        if not w:
+            w = self.winfo_width() if self.winfo_ismapped() else 0
+        w = int(w) or self._want[0]
+        h = int(h or 0) or self._want[1]
+        self._drawn = (w, h)
+        self.delete("all")
+        fill, fg = self._colours()
+        r = h / 2.0
+        # Plain shape underneath, the smooth picture on top.
+        self.create_oval(0, 0, h, h, fill=fill, outline="")
+        self.create_oval(w - h, 0, w, h, fill=fill, outline="")
+        self.create_rectangle(r, 0, w - r, h, fill=fill, outline="")
+        try:
+            from . import icons
+            self._img = icons.pill(w, h, fill, None, master=self)
+            self.create_image(0, 0, image=self._img, anchor="nw")
+        except Exception:
+            pass
+        if self._o["mark"]:
+            # A dot under the words (a day with something planned).
+            d = max(2, h / 14.0)
+            self.create_oval(w / 2.0 - d, h - 3 * d - d, w / 2.0 + d,
+                             h - 3 * d + d, fill=self._o["mark"], outline="")
+        if self._o["anchor"] == "w":
+            self.create_text(int(self._o["padx"]), h / 2.0, anchor="w",
+                             text=self._o["text"], fill=fg,
+                             font=self._o["font"])
+        else:
+            self.create_text(w / 2.0, h / 2.0, text=self._o["text"],
+                             fill=fg, font=self._o["font"])
+
+    def _set_hover(self, on):
+        if self._o["state"] == "disabled":
+            on = False
+        if on != self._hover:
+            self._hover = on
+            self._draw(*self._drawn) if self._drawn else self._draw()
+
+    def configure(self, cnf=None, **kw):
+        if cnf:
+            kw.update(cnf)
+        mine = {"text": "text", "bg": "bg", "background": "bg", "fg": "fg",
+                "foreground": "fg", "activebackground": "abg",
+                "activeforeground": "afg", "font": "font", "padx": "padx",
+                "pady": "pady", "state": "state", "anchor": "anchor"}
+        changed = False
+        for k in list(kw):
+            if k == "command":
+                self._command = kw.pop(k)
+            elif k in mine:
+                self._o[mine[k]] = kw.pop(k)
+                changed = True
+            elif k in self._IGNORED:
+                kw.pop(k)
+        if "width" in kw:
+            self._o["width"] = kw.pop("width")
+            changed = True
+        if kw:
+            tk.Canvas.configure(self, **kw)
+        if changed:
+            self._size()
+            self._draw(*self._want) if not self.winfo_ismapped() \
+                else self._draw()
+
+    config = configure
+
+    def cget(self, key):
+        mine = {"text": "text", "bg": "bg", "fg": "fg", "state": "state",
+                "font": "font"}
+        if key in mine:
+            return self._o[mine[key]]
+        return tk.Canvas.cget(self, key)
+
+    def invoke(self):
+        if self._o["state"] == "disabled" or self._command is None:
+            return None
+        return self._command()
+
+
 def _button(parent, text, command, primary=False):
-    cls = FlatButton if IS_MAC else tk.Button
+    cls = PillButton
     return cls(parent, text=text, command=command,
-                     bg=ACCENT if primary else ROW, fg="#FFFFFF",
+                     bg=ACCENT if primary else ROW,
+                     fg=ON_ACCENT if primary else BUTTON_TEXT,
                      activebackground=ACCENT, activeforeground="#FFFFFF",
                      relief="flat", bd=0, highlightthickness=0, padx=16, pady=7,
                      font=(FONT, -12), cursor="hand2")

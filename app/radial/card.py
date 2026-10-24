@@ -56,7 +56,7 @@ class Card:
 
         head = tk.Frame(self.frame, bg=common.PANEL)
         head.pack(fill="x")
-        tk.Label(head, text=title, bg=common.PANEL, fg="#FFFFFF",
+        tk.Label(head, text=title, bg=common.PANEL, fg=common.TITLE,
                  font=self._f(13, True), anchor="w").pack(side="left")
         close = tk.Label(head, text="✕", bg=common.PANEL, fg=common.MUTED,
                          font=self._f(12), cursor="hand2")
@@ -194,16 +194,15 @@ class Card:
                     for k, b in buttons.items():
                         on = var.get() == k
                         b.configure(bg=common.ACCENT if on else common.ROW,
-                                    fg="#FFFFFF" if on else common.TEXT)
+                                    fg=common.ON_ACCENT if on else common.TEXT)
 
                 for i, (key, text) in enumerate(field["options"]):
-                    b = (common.FlatButton if common.IS_MAC
-                         else tk.Button)(row, text=text, relief="flat", bd=0,
+                    b = common.PillButton(row, text=text, relief="flat", bd=0,
                                   highlightthickness=0, font=self._f(11),
                                   padx=int(8 * s), pady=int(5 * s),
                                   cursor="hand2",
                                   activebackground=common.ACCENT,
-                                  activeforeground="#FFFFFF",
+                                  activeforeground=common.ON_ACCENT,
                                   command=lambda k=key, v=var, p=paint:
                                   (v.set(k), p()))
                     b.grid(row=i // 4, column=i % 4, padx=(0, int(4 * s)),
@@ -268,7 +267,7 @@ class Card:
                 checks.append((on, pw1, pw2))
 
         self.error = tk.Label(self.body, text="", bg=common.PANEL,
-                              fg="#F28B82", font=self._f(11), anchor="w",
+                              fg=common.ERROR, font=self._f(11), anchor="w",
                               justify="left", wraplength=self.w - int(28 * s))
         self.error.pack(fill="x")
         row = tk.Frame(self.body, bg=common.PANEL)
@@ -416,7 +415,7 @@ class Card:
         self._clear()
         s = self.s
         tk.Label(self.body, text="✓  " + message, bg=common.PANEL,
-                 fg="#5FD38D", font=self._f(12, True), anchor="w",
+                 fg=common.GOOD, font=self._f(12, True), anchor="w",
                  justify="left", wraplength=self.w - int(28 * s)).pack(
             fill="x")
         if path and common.where(path):
@@ -466,7 +465,7 @@ class Card:
         self._clear()
         s = self.s
         tk.Label(self.body, text="That did not work.", bg=common.PANEL,
-                 fg="#F28B82", font=self._f(12, True), anchor="w").pack(
+                 fg=common.ERROR, font=self._f(12, True), anchor="w").pack(
             fill="x")
         tk.Label(self.body, text=message[:400], bg=common.PANEL,
                  fg=common.TEXT, font=self._f(11), anchor="w",

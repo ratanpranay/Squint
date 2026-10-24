@@ -20,6 +20,18 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Mouse only**: tools and actions are picked by clicking; the number
+  and letter keys no longer pick anything (Esc still goes back/closes).
+- **Panels match the ring**: light or dark with the system, in the tone
+  of the frosted glass, with rounded corners. Calendar days are round.
+- **Pill-shaped buttons and choices** in every panel.
+
+---
+
 ## 1.58.1 — 2026-10-24
 
 ### Fixed

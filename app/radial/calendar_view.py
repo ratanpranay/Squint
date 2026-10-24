@@ -111,7 +111,7 @@ class CalendarPanel:
             _view["day"] = today
             _view["month"] = today.replace(day=1)
         self.outer = frame
-        menu.header(frame, "Calendar", "key 7")
+        menu.header(frame, "Calendar")
         self.body = tk.Frame(frame, bg=common.PANEL)
         self.body.pack(fill="x")
         self.render()
@@ -139,7 +139,7 @@ class CalendarPanel:
         grid.pack(fill="x", pady=(int(8 * s), 0))
         # Column 0: the ISO week number ("KW"), as German calendars show it.
         grid.columnconfigure(0, weight=0, minsize=int(30 * s))
-        tk.Label(grid, text="Wk", bg=common.PANEL, fg="#5F6676",
+        tk.Label(grid, text="Wk", bg=common.PANEL, fg=common.FAINT,
                  font=m.f(11, True)).grid(row=0, column=0, sticky="we",
                                           pady=(0, int(4 * s)))
         for i, name in enumerate(("Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
@@ -151,24 +151,29 @@ class CalendarPanel:
         weeks = calendar.Calendar(0).monthdatescalendar(month.year,
                                                         month.month)
         for r, week in enumerate(weeks):
-            tk.Label(grid, text=str(week[0].isocalendar()[1]) + "\n ",
-                     bg=common.PANEL, fg="#7D8597", font=m.f(11),
+            tk.Label(grid, text=str(week[0].isocalendar()[1]),
+                     bg=common.PANEL, fg=common.DIM, font=m.f(11),
                      pady=int(2 * s)).grid(row=r + 1, column=0, sticky="nsew")
             for c, d in enumerate(week):
                 inside = d.month == month.month
                 marked = d.isoformat() in data
                 if d == day:
-                    bg, fg = common.ACCENT, "#FFFFFF"
+                    bg, fg = common.ACCENT, common.ON_ACCENT
                 elif d == today:
-                    bg, fg = common.ROW, "#FFFFFF"
+                    bg, fg = common.ROW, common.TITLE
                 else:
-                    bg, fg = common.PANEL, common.TEXT if inside else "#5F6676"
-                cell = tk.Label(grid, text=str(d.day) + ("\n•" if marked
-                                                          else "\n "),
-                                bg=bg, fg=fg, font=m.f(14), cursor="hand2",
-                                pady=int(2 * s))
-                cell.grid(row=r + 1, column=c + 1, padx=1, pady=1, sticky="nsew")
-                cell.bind("<Button-1>", lambda _e, d=d: self.pick(d))
+                    bg, fg = common.PANEL, common.TEXT if inside else common.FAINT
+                # A round button per day; the picked day fills.
+                cell = common.PillButton(
+                    grid, text=str(d.day), bg=bg, fg=fg,
+                    activebackground=bg if d == day else common.ROW,
+                    activeforeground=fg, font=m.f(14), padx=int(4 * s),
+                    pady=int(8 * s),
+                    mark=(fg if d == day else common.ACCENT) if marked
+                    else None,
+                    command=lambda d=d: self.pick(d))
+                cell.grid(row=r + 1, column=c + 1, padx=int(2 * s),
+                          pady=int(2 * s), sticky="nsew")
 
         tk.Frame(self.body, bg=common.LINE, height=1).pack(
             fill="x", pady=(int(8 * s), int(6 * s)))
@@ -192,7 +197,7 @@ class CalendarPanel:
                      wraplength=m.panel_width() - int(140 * s)).pack(
                 side="left", fill="x", expand=True, pady=int(4 * s))
             delete = tk.Label(row, text="Delete", bg=common.ROW,
-                              fg="#F28B82", font=m.f(12), cursor="hand2",
+                              fg=common.ERROR, font=m.f(12), cursor="hand2",
                               padx=int(8 * s))
             delete.pack(side="right")
             delete.bind("<Button-1>", lambda _e, i=i: self.remove(i))
@@ -245,7 +250,7 @@ class CalendarPanel:
             city = tk.Label(tile, text=name, bg=common.ROW, fg=common.MUTED,
                             font=m.f(12), anchor="w")
             city.pack(fill="x")
-            time_l = tk.Label(tile, text="", bg=common.ROW, fg="#FFFFFF",
+            time_l = tk.Label(tile, text="", bg=common.ROW, fg=common.TITLE,
                               font=m.f(21, True), anchor="w")
             time_l.pack(fill="x")
             for w in (tile, city, time_l):
@@ -280,7 +285,7 @@ class CalendarPanel:
             entry.pack(fill="x", ipady=int(4 * s), pady=(0, int(6 * s)))
             box = tk.Listbox(frame, height=10, bg=common.ROW, fg=common.TEXT,
                              selectbackground=common.ACCENT,
-                             selectforeground="#FFFFFF", relief="flat",
+                             selectforeground=common.ON_ACCENT, relief="flat",
                              highlightthickness=0, activestyle="none",
                              font=menu.f(12))
             box.pack(fill="x")
@@ -341,7 +346,7 @@ class CalendarPanel:
         when = parse_time(self.time_var.get())
         if when is None:
             self.hint.configure(text="That time is not clear. Try 9:30.",
-                                fg="#F28B82")
+                                fg=common.ERROR)
             return
         add(_view["day"], text, when)
         self.render()

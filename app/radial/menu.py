@@ -97,7 +97,11 @@ class RadialMenu:
         # Room above the ring for the support line.
         self.cy = min(max(py - top, margin + 40 * s), height - margin)
         # Taken before the window exists, so the ring is not in it.
+        self._glass_tone = None
         self._glass = self._backdrop()
+        # Panels, cards, toasts: the same light or dark as the ring, and
+        # the panel in the tone of the glass.
+        common.apply_theme(self.th is LIGHT, self._glass_tone)
 
         win = self.win = tk.Toplevel(root)
         win.overrideredirect(True)
@@ -127,11 +131,13 @@ class RadialMenu:
         self.canvas.pack()
 
 
-        # The panel: a border frame holding a padded content frame.
-        self.panel_outer = tk.Frame(self.canvas, bg=ITEM_LINE)
+        # The panel: a frame on a rounded card drawn on the canvas. The
+        # card reaches a little past the frame on every side, so its round
+        # corners show and the frame's square ones are inside it.
+        self.panel_outer = tk.Frame(self.canvas, bg=common.PANEL)
         self.panel = tk.Frame(self.panel_outer, bg=common.PANEL,
-                              padx=int(14 * s), pady=int(12 * s))
-        self.panel.pack(padx=1, pady=1)
+                              padx=int(6 * s), pady=int(4 * s))
+        self.panel.pack()
         self.panel_item = self.canvas.create_window(
             0, 0, window=self.panel_outer, anchor="nw")
 
@@ -220,6 +226,11 @@ class RadialMenu:
             mask = Image.new("L", img.size, 0)
             ImageDraw.Draw(mask).ellipse((0, 0, 2 * r - 1, 2 * r - 1),
                                          fill=255)
+            tone = img.resize((1, 1), Image.BOX).getpixel((0, 0))[:3]
+            # A touch more solid than the glass, for text on it.
+            base = tuple(int(th["glass"][k:k + 2], 16) for k in (1, 3, 5))
+            tone = tuple(int(a * 0.6 + b * 0.4) for a, b in zip(tone, base))
+            self._glass_tone = "#%02X%02X%02X" % tone
             img.putalpha(mask)
             return icons.to_tk(img, self.ctrl.root)
         except Exception as exc:          # noqa: BLE001 - plain ring then
@@ -325,8 +336,7 @@ class RadialMenu:
             # The picked tool's note, always in this one place.
             hint = self.tools[self.selected]["note"]
         else:
-            hint = ("1–%d picks a tool · letters pick an action · Esc goes "
-                    "back" % len(self.tools))
+            hint = "Click a tool  ·  Esc closes"
         hint_id = c.create_text(cx, cy + r + 14 * s, text=hint, anchor="n",
                                 width=380 * s, justify="center",
                                 fill=self.th["card_text"], font=self.f(11),
@@ -336,7 +346,7 @@ class RadialMenu:
         self._hint_image = self._card_image(x1 - x0 + 24 * s,
                                             y1 - y0 + 10 * s)
         card = self.th["card"]
-        self._pill(x0 - 11 * s, y0 - 4 * s, x1 + 11 * s, y1 + 4 * s, 8 * s,
+        self._pill(x0 - 8 * s, y0 - 2 * s, x1 + 8 * s, y1 + 2 * s, 6 * s,
                    fill="#%02X%02X%02X" % card[:3], tags=("ring", "hint"))
         c.create_image(x0 - 12 * s, y0 - 5 * s, image=self._hint_image,
                        anchor="nw", tags=("ring", "hint"))
@@ -500,7 +510,7 @@ class RadialMenu:
         if self.closed:
             return
         if self.selected is None:
-            self.canvas.itemconfigure(self.panel_item, state="hidden")
+            self._panel_show(False)
             self.panel_box = None
             self._fit_hint()
             return
@@ -516,10 +526,43 @@ class RadialMenu:
         _ml, _mt, mw, mh = self.mon
         left = min(max(left, 8 * s), mw - w - 8 * s)
         top = min(max(top, 8 * s), mh - h - 8 * s)
+        m = int(8 * s)
+        left = min(max(left, 8 * s + m), mw - w - 8 * s - m)
+        top = min(max(top, 8 * s + m), mh - h - 8 * s - m)
         self.canvas.coords(self.panel_item, left, top)
-        self.canvas.itemconfigure(self.panel_item, state="normal")
-        self.panel_box = (left, top, w, h)
+        self._draw_panel_card(left - m, top - m, w + 2 * m, h + 2 * m)
+        self._panel_show(True)
+        self.panel_box = (left - m, top - m, w + 2 * m, h + 2 * m)
         self._fit_hint()
+
+    def _draw_panel_card(self, x, y, w, h):
+        from PIL import Image, ImageDraw
+        c, s = self.canvas, self.s
+        c.delete("panelcard")
+        w, h = int(round(w)), int(round(h))
+        k = 3
+        rgb = lambda col: tuple(int(col[i:i + 2], 16)  # noqa: E731
+                                for i in (1, 3, 5))
+        img = Image.new("RGBA", (w * k, h * k), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        rad = int(16 * s * k)
+        d.rounded_rectangle((0, 0, w * k - 1, h * k - 1), rad,
+                            fill=rgb(common.LINE) + (255,))
+        d.rounded_rectangle((k, k, w * k - 1 - k, h * k - 1 - k), rad - k,
+                            fill=rgb(common.PANEL) + (255,))
+        self._panel_card = icons.to_tk(img.resize((w, h), Image.LANCZOS),
+                                       c)
+        # A plain shape under it, in case pictures do not show.
+        self._pill(x + 5 * s, y + 5 * s, x + w - 5 * s, y + h - 5 * s,
+                   10 * s, fill=common.PANEL, tags=("panelcard",))
+        c.create_image(x, y, image=self._panel_card, anchor="nw",
+                       tags=("panelcard",))
+        c.tag_raise(self.panel_item)
+
+    def _panel_show(self, on):
+        state = "normal" if on else "hidden"
+        self.canvas.itemconfigure(self.panel_item, state=state)
+        self.canvas.itemconfigure("panelcard", state=state)
 
     def _fit_hint(self):
         """The key hint under the ring hides while the panel covers any
@@ -544,7 +587,7 @@ class RadialMenu:
     def header(self, parent, title, right=None, close=False):
         row = tk.Frame(parent, bg=common.PANEL)
         row.pack(fill="x")
-        tk.Label(row, text=title, bg=common.PANEL, fg="#FFFFFF",
+        tk.Label(row, text=title, bg=common.PANEL, fg=common.TITLE,
                  font=self.f(13, True), anchor="w").pack(side="left")
         if close:
             x = tk.Label(row, text="✕", bg=common.PANEL, fg=common.MUTED,
@@ -559,35 +602,27 @@ class RadialMenu:
         return row
 
     def note(self, parent, text):
-        tk.Frame(parent, bg=ITEM_LINE, height=1).pack(
+        tk.Frame(parent, bg=common.LINE, height=1).pack(
             fill="x", pady=(int(6 * self.s), int(8 * self.s)))
-        tk.Label(parent, text=text, bg=common.PANEL, fg="#B8BECA",
+        tk.Label(parent, text=text, bg=common.PANEL, fg=common.MUTED,
                  font=self.f(11), anchor="w", justify="left",
                  wraplength=self.panel_width()).pack(fill="x")
 
     def row(self, parent, label, command, hint=""):
-        """One clickable line, highlighted under the mouse."""
+        """One choice in a panel: a pill across the panel, lit in the
+        tool's colour under the mouse."""
         s = self.s
-        frame = tk.Frame(parent, bg=common.PANEL, cursor="hand2")
-        frame.pack(fill="x", pady=(0, int(2 * s)))
-        text = tk.Label(frame, text=label, bg=common.PANEL, fg=common.TEXT,
-                        font=self.f(13), anchor="w", padx=int(10 * s),
-                        pady=int(8 * s))
-        text.pack(side="left", fill="x", expand=True)
-        key = tk.Label(frame, text=hint, bg=common.PANEL, fg=common.MUTED,
-                       font=self.f(11), padx=int(10 * s))
-        key.pack(side="right")
-        parts = (frame, text, key)
-
-        def paint(on):
-            for p in parts:
-                p.configure(bg=common.ROW if on else common.PANEL)
-
-        for p in parts:
-            p.bind("<Enter>", lambda _e: paint(True))
-            p.bind("<Leave>", lambda _e: paint(False))
-            p.bind("<Button-1>", lambda _e: command())
-        return frame
+        colour = common.ACCENT
+        if self.selected is not None:
+            colour = self.tools[self.selected].get("colour", colour)
+        b = common.PillButton(parent, text=label, command=command,
+                              bg=common.ROW, fg=common.TEXT,
+                              activebackground=colour,
+                              activeforeground="#FFFFFF", font=self.f(13),
+                              padx=int(16 * s), pady=int(8 * s), anchor="w",
+                              width=self.panel_width())
+        b.pack(fill="x", pady=(0, int(6 * s)))
+        return b
 
     def button(self, parent, text, command, primary=False):
         b = common._button(parent, text, command, primary)
@@ -601,7 +636,7 @@ class RadialMenu:
         self.clear_panel()
         self.pinned = False
         self.view = "list"
-        self.canvas.itemconfigure(self.panel_item, state="hidden")
+        self._panel_show(False)
         self.panel_box = None
         self._draw_bloom()
         self._fit_hint()
@@ -609,7 +644,7 @@ class RadialMenu:
     def _draw_bloom(self):
         c, s = self.canvas, self.s
         tool = self.tools[self.selected]
-        items = [(chr(65 + j), label, j)
+        items = [("", label, j)
                  for j, (label, _f, _u, _k) in enumerate(tool["rows"])]
         if tool.get("top_label"):
             items.append(("", tool["top_label"](), "top"))
@@ -675,9 +710,16 @@ class RadialMenu:
             colour = tool.get("colour", common.ACCENT)
             lit = icons.pill(w, h, colour, colour, master=self.canvas)
             self._bloom_images[j] = (normal, lit)
-            self._pill(x0 + 1, y0 + 1, x1 - 1, y1 - 1, h / 2.0 - 1,
-                       fill=th["pill_quiet"] if special else th["pill"],
-                       tags=("bloom", tag, tag + "_fb"))
+            fb = th["pill_quiet"] if special else th["pill"]
+            fbt = ("bloom", tag, tag + "_fb")
+            # Plain shape under the picture: two circles and a bar, so it
+            # never shows past the smooth edge.
+            c.create_oval(x0 + 1, y0 + 1, x0 + h - 1, y1 - 1, fill=fb,
+                          outline="", tags=fbt)
+            c.create_oval(x1 - h + 1, y0 + 1, x1 - 1, y1 - 1, fill=fb,
+                          outline="", tags=fbt)
+            c.create_rectangle(x0 + h / 2.0, y0 + 1, x1 - h / 2.0, y1 - 1,
+                               fill=fb, outline="", tags=fbt)
             c.create_image(x0, y0, image=normal, anchor="nw",
                            tags=("bloom", tag, tag + "_bg"))
             c.tag_lower(tag + "_bg", lid)
@@ -791,7 +833,7 @@ class RadialMenu:
         self.selected = None
         self.pinned = False
         self.view = "idle"
-        self.canvas.itemconfigure(self.panel_item, state="hidden")
+        self._panel_show(False)
         self._draw_ring()
 
     def select(self, i):
@@ -864,32 +906,9 @@ class RadialMenu:
             return False
 
     def _key(self, e):
-        if self._typing() or self.pinned:
-            return
-        ch = (e.char or "").lower()
-        if ch and ch in "123456789":
-            if int(ch) <= len(self.tools):
-                self.select(int(ch) - 1)
-            return
-        if self.selected is None:
-            if e.keysym in ("Left", "Up", "Right", "Down", "Tab"):
-                self.select(0)
-            return
-        rows = self.tools[self.selected]["rows"]
-        if e.keysym in ("Return", "KP_Enter") and rows:  # noqa
-            lit = self._bloom_hover
-            if lit == "top":
-                self._bloom_pick("top")
-            else:
-                self.run_action(lit if isinstance(lit, int) else 0)
-            return
-        if ch and "a" <= ch <= "z" and ord(ch) - 97 < len(rows):
-            self.run_action(ord(ch) - 97)
-            return
-        if e.keysym in ("Left", "Up"):
-            self.select((self.selected - 1) % len(self.tools))
-        elif e.keysym in ("Right", "Down", "Tab"):
-            self.select((self.selected + 1) % len(self.tools))
+        """Tools and actions are picked with the mouse only; Esc (bound on
+        its own) goes back or closes."""
+        return
 
     def _escape(self, _e=None):
         if self.view in ("list", "hover", "hidden", "idle", "support"):
@@ -946,7 +965,6 @@ class RadialMenu:
                 self._last_pointer = (px, py)
                 self._mac_hover(px, py)
             from .. import platform_util
-            self._mac_keys()
             if platform_util.key_is_down("escape") and not self._typing():
                 if not getattr(self, "_esc_down", False):
                     self._esc_down = True
@@ -968,47 +986,6 @@ class RadialMenu:
         except Exception as exc:          # noqa: BLE001 - keep watching
             common.log("mac watch: %r" % exc)
         self.win.after(50, self._mac_watch)
-
-    def _mac_keys(self):
-        """1-9, A-Z and Return, read straight from the keyboard - the same
-        keys as on Windows, where they arrive as events."""
-        if self._typing() or self.pinned or not self._pointer_on_ring():
-            # The key also reaches the app in front (the ring does not take
-            # the keyboard on a Mac), so only act while the mouse says the
-            # person is using the ring.
-            self._keys_down = set()
-            return
-        try:
-            from .. import platform_util
-            from ..hotkey_carbon import KEY_CODES
-            asker = platform_util._key_state()
-        except Exception:
-            return
-        if asker is None:
-            return
-        names = [str(n) for n in range(1, len(self.tools) + 1)] + \
-            [chr(c) for c in range(97, 123)] + ["return"]
-        down = set()
-        for name in names:
-            code = KEY_CODES.get(name)
-            try:
-                if code is not None and asker(code):
-                    down.add(name)
-            except Exception:
-                return
-        fresh = down - getattr(self, "_keys_down", set())
-        self._keys_down = down
-        for name in sorted(fresh):
-
-            class Event:
-                pass
-
-            e = Event()
-            e.char = "" if name == "return" else name
-            e.keysym = "Return" if name == "return" else name
-            self._key(e)
-            if self.closed or self.pinned:
-                return
 
     def _pointer_on_ring(self):
         px, py = self._last_pointer or self.win.winfo_pointerxy()
@@ -1103,13 +1080,13 @@ class RadialMenu:
                 self._away = 0
                 self._engaged = True
                 if self.view == "hidden":
-                    self.canvas.itemconfigure(self.panel_item, state="normal")
+                    self._panel_show(True)
                     self.view = "hover"
             else:
                 self._away += 1
                 if self._away >= 3 and self.view == "hover" \
                         and self._engaged:
-                    self.canvas.itemconfigure(self.panel_item, state="hidden")
+                    self._panel_show(False)
                     self.view = "hidden"
         self.win.after(150, self._watch_pointer)
 
@@ -1124,7 +1101,7 @@ class RadialMenu:
         # usual. Hover over a tool does not switch away (see _motion).
         self.pinned = False
         self.view = "support"
-        self.canvas.itemconfigure(self.panel_item, state="hidden")
+        self._panel_show(False)
         self.set_qr(self.support_url)
 
     def _open_support(self):

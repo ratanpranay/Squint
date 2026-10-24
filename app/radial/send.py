@@ -116,11 +116,11 @@ def firewall_row(ctrl, menu, frame):
     if firewall_ok():
         return
     s = menu.s
-    box = tk.Frame(frame, bg="#3A3320")
+    box = tk.Frame(frame, bg=common.WARN_BG)
     box.pack(fill="x", pady=(0, int(8 * s)))
     text = tk.Label(box, text="Windows may stop other devices reaching this "
                     "PC. Allow it once (Windows asks to confirm).",
-                    bg="#3A3320", fg="#F5D58A", font=menu.f(11),
+                    bg=common.WARN_BG, fg=common.WARN_FG, font=menu.f(11),
                     justify="left", anchor="w",
                     wraplength=menu.panel_width() - int(90 * s),
                     padx=int(8 * s), pady=int(6 * s))
@@ -160,10 +160,10 @@ def name_row(menu, frame):
             child.destroy()
         tk.Label(row, text="You appear as", bg=common.PANEL, fg=common.MUTED,
                  font=menu.f(11)).pack(side="left")
-        tk.Label(row, text=device_name(), bg=common.PANEL, fg="#FFFFFF",
+        tk.Label(row, text=device_name(), bg=common.PANEL, fg=common.TITLE,
                  font=menu.f(11, True)).pack(side="left", padx=int(6 * s))
         change = tk.Label(row, text="Change", bg=common.PANEL,
-                          fg="#8FB4FF", font=menu.f(11), cursor="hand2")
+                          fg=common.LINK, font=menu.f(11), cursor="hand2")
         change.pack(side="right")
         change.bind("<Button-1>", lambda _e: edit())
         menu.relayout()

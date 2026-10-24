@@ -390,7 +390,7 @@ def selfie(ctrl, menu=None, **_):
                 if not status.winfo_exists():
                     return
                 if state["error"]:
-                    status.configure(text=state["error"], fg="#F28B82")
+                    status.configure(text=state["error"], fg=common.ERROR)
                     menu.relayout()
                     return
                 if state.get("error_soft") and state["frame"] is None:
