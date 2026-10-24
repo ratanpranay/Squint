@@ -20,6 +20,16 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Mac: typing numbers into the calculator did nothing.** The number
+  keys on the top row (and a number pad, if there is one), Shift for + ×
+  % ( ), Return for the answer and Delete now work while it is open.
+
+---
+
 ## 1.60.0 — 2026-10-24
 
 ### Changed

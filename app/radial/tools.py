@@ -112,6 +112,68 @@ def show(value):
 
 _history = []        # this session's sums, newest first
 
+# macOS key codes (the top row, and a number pad if there is one):
+# (without shift, with shift).
+_MAC_KEYS = {
+    0x12: ("1", ""), 0x13: ("2", ""), 0x14: ("3", ""), 0x15: ("4", ""),
+    0x17: ("5", "%"), 0x16: ("6", "^"), 0x1A: ("7", ""), 0x1C: ("8", "×"),
+    0x19: ("9", "("), 0x1D: ("0", ")"), 0x1B: ("−", ""), 0x18: ("=", "+"),
+    0x2C: ("÷", ""), 0x2F: (".", ""), 0x2B: (".", ""),
+    0x52: ("0", "0"), 0x53: ("1", "1"), 0x54: ("2", "2"), 0x55: ("3", "3"),
+    0x56: ("4", "4"), 0x57: ("5", "5"), 0x58: ("6", "6"), 0x59: ("7", "7"),
+    0x5B: ("8", "8"), 0x5C: ("9", "9"), 0x41: (".", "."), 0x43: ("×", "×"),
+    0x45: ("+", "+"), 0x4E: ("−", "−"), 0x4B: ("÷", "÷"), 0x51: ("=", "="),
+    0x24: ("=", "="), 0x4C: ("=", "="),
+    0x33: ("Del", "Del"), 0x75: ("Del", "Del"), 0x47: ("C", "C"),
+}
+_SHIFT = (0x38, 0x3C)
+
+
+def _mac_typing(menu, entry, press, equals):
+    """Read the keyboard every 30 ms while the calculator is up: each key
+    counts once per press, and a held key repeats after a short pause."""
+    import time
+    try:
+        from .. import platform_util
+        asker = platform_util._key_state()
+    except Exception:
+        asker = None
+    if asker is None:
+        return
+    held = {}
+
+    def tick():
+        try:
+            if menu.closed or menu.view != "calculator" or \
+                    not entry.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        shift = any(asker(k) for k in _SHIFT)
+        now = time.time()
+        for code, (plain, shifted) in _MAC_KEYS.items():
+            if not asker(code):
+                held.pop(code, None)
+                continue
+            first = code not in held
+            if first:
+                held[code] = now + 0.45
+            elif now >= held[code]:
+                held[code] = now + 0.07
+            else:
+                continue
+            key = shifted if shift else plain
+            if not key:
+                continue
+            if key == "=":
+                if first:
+                    equals()
+            else:
+                press(key)
+        entry.after(30, tick)
+
+    entry.after(200, tick)
+
 
 def calculator(ctrl, menu=None, **_):
     if menu is None:
@@ -232,15 +294,22 @@ def calculator(ctrl, menu=None, **_):
         draw_history()
         # Typing, the number pad included, goes straight into the sum.
         if common.IS_MAC:
-            # A Mac only gives keys to the app in front: bring Squint
-            # forward while the calculator is open (the main window is not
-            # shown for it), and the ring hands the front back on close.
+            # The ring's window never gets the keyboard on a Mac, so the
+            # keys are read straight from it while the calculator is open
+            # (as Escape already is). Squint is brought forward meanwhile,
+            # so the keys do not also type into the app behind; the ring
+            # hands the front back when it closes. The box is read-only
+            # here so nothing arrives twice.
             try:
                 from AppKit import NSApplication
                 NSApplication.sharedApplication() \
                     .activateIgnoringOtherApps_(True)
             except Exception:
                 pass
+            entry.configure(state="readonly",
+                            readonlybackground=common.PANEL)
+            _mac_typing(menu, entry, press, equals)
+            return
         try:
             menu.win.focus_force()
         except tk.TclError:
