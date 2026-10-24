@@ -221,8 +221,7 @@ class RadialMenu:
             ImageDraw.Draw(mask).ellipse((0, 0, 2 * r - 1, 2 * r - 1),
                                          fill=255)
             img.putalpha(mask)
-            from PIL import ImageTk
-            return ImageTk.PhotoImage(img)
+            return icons.to_tk(img, self.ctrl.root)
         except Exception as exc:          # noqa: BLE001 - plain ring then
             common.log("frosted ring off: %r" % exc)
             return None
@@ -231,14 +230,14 @@ class RadialMenu:
         cache = self.__dict__.setdefault("_glows", {})
         key = (colour, int(radius))
         if key not in cache:
-            from PIL import Image, ImageDraw, ImageFilter, ImageTk
+            from PIL import Image, ImageDraw, ImageFilter
             size = int(radius * 2 + 12)
             img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
             rgb = tuple(int(colour[k:k + 2], 16) for k in (1, 3, 5))
             ImageDraw.Draw(img).ellipse((6, 6, size - 6, size - 6),
                                         fill=rgb + (80,))
             img = img.filter(ImageFilter.GaussianBlur(3))
-            cache[key] = ImageTk.PhotoImage(img)
+            cache[key] = icons.to_tk(img, self.canvas)
         return cache[key]
 
     def _tick_clock(self):
@@ -260,6 +259,10 @@ class RadialMenu:
         cx, cy = self.cx, self.cy
         r = 200 * s
         if self._glass is not None:
+            # Plain fill first: if a picture ever fails to show, the ring
+            # is still a ring.
+            c.create_oval(cx - r, cy - r, cx + r, cy + r,
+                          fill=self.th["glass"], outline="", tags="ring")
             c.create_image(cx, cy, image=self._glass, tags="ring")
             c.create_oval(cx - r, cy - r, cx + r, cy + r, fill="",
                           outline=self.th["ring_line"],
@@ -279,8 +282,11 @@ class RadialMenu:
                 # A soft glow in the tool's colour around it.
                 glow = self._glow(colour, rr + 11 * s)
                 c.create_image(x, y, image=glow, tags="ring")
+            c.create_oval(x - rr + 1, y - rr + 1, x + rr - 1, y + rr - 1,
+                          fill=colour if on else th["item"], outline="",
+                          tags="ring")
             disc = icons.pill(2 * rr, 2 * rr, colour if on else th["item"],
-                              colour if on else th["item_line"])
+                              colour if on else th["item_line"], master=self.canvas)
             c.create_image(x, y, image=disc, tags="ring")
             # Drawn, not taken from a font: the same on Windows and Mac.
             icons.draw(c, tool["key"], x, y - 8 * s, 22 * s,
@@ -329,6 +335,9 @@ class RadialMenu:
         x0, y0, x1, y1 = c.bbox(hint_id)
         self._hint_image = self._card_image(x1 - x0 + 24 * s,
                                             y1 - y0 + 10 * s)
+        card = self.th["card"]
+        self._pill(x0 - 11 * s, y0 - 4 * s, x1 + 11 * s, y1 + 4 * s, 8 * s,
+                   fill="#%02X%02X%02X" % card[:3], tags=("ring", "hint"))
         c.create_image(x0 - 12 * s, y0 - 5 * s, image=self._hint_image,
                        anchor="nw", tags=("ring", "hint"))
         c.tag_raise(hint_id)
@@ -662,10 +671,13 @@ class RadialMenu:
             special = j == "top"
             th = self.th
             normal = icons.pill(w, h, th["pill_quiet"] if special
-                                else th["pill"], th["pill_line"])
+                                else th["pill"], th["pill_line"], master=self.canvas)
             colour = tool.get("colour", common.ACCENT)
-            lit = icons.pill(w, h, colour, colour)
+            lit = icons.pill(w, h, colour, colour, master=self.canvas)
             self._bloom_images[j] = (normal, lit)
+            self._pill(x0 + 1, y0 + 1, x1 - 1, y1 - 1, h / 2.0 - 1,
+                       fill=th["pill_quiet"] if special else th["pill"],
+                       tags=("bloom", tag, tag + "_fb"))
             c.create_image(x0, y0, image=normal, anchor="nw",
                            tags=("bloom", tag, tag + "_bg"))
             c.tag_lower(tag + "_bg", lid)
@@ -675,6 +687,7 @@ class RadialMenu:
                 c.coords(kid, tx, ym)
                 c.tag_lower(tag + "_bg", kid)
                 tx += 16 * s
+            c.tag_lower(tag + "_fb", tag + "_bg")
             c.coords(lid, tx, ym)
             self.bloom.append((x0, y0, x1, y1, j))
         for _x0, _y0, _x1, _y1, j in self.bloom:
@@ -689,14 +702,14 @@ class RadialMenu:
             self._paint_bloom(self.bloom[0][4])
 
     def _card_image(self, w, h):
-        from PIL import Image, ImageDraw, ImageTk
+        from PIL import Image, ImageDraw
         k = 4
         w, h = int(round(w)), int(round(h))
         img = Image.new("RGBA", (w * k, h * k), (0, 0, 0, 0))
         ImageDraw.Draw(img).rounded_rectangle(
             (0, 0, w * k - 1, h * k - 1), int(10 * self.s * k),
             fill=self.th["card"])
-        return ImageTk.PhotoImage(img.resize((w, h), Image.LANCZOS))
+        return icons.to_tk(img.resize((w, h), Image.LANCZOS), self.canvas)
 
     def _hit_bloom(self, x, y):
         for x0, y0, x1, y1, j in self.bloom:
@@ -716,6 +729,9 @@ class RadialMenu:
             tag = "bloom_%s" % old
             special = old == "top"
             c.itemconfigure(tag + "_bg", image=images[old][1 if on else 0])
+            colour = self.tools[self.selected].get("colour", common.ACCENT)
+            c.itemconfigure(tag + "_fb", fill=colour if on else (
+                self.th["pill_quiet"] if special else self.th["pill"]))
             c.itemconfigure(tag + "_key", fill="#FFFFFF" if on
                             else self.th["pill_key"])
             c.itemconfigure(tag + "_text", fill="#FFFFFF" if on else (

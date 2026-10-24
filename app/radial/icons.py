@@ -10,6 +10,29 @@ _cache = {}
 OVERSAMPLE = 4
 
 
+def to_tk(img, master=None):
+    """A PIL picture as a Tk image, handed over as PNG data.
+
+    Not through Pillow's own Tk bridge: in the Mac app that bridge can fail
+    without saying so, and the ring then showed only its text. PNG data is
+    read by Tk itself, everywhere. `master` ties the image to the right Tk
+    (an image belongs to the interpreter it was made in)."""
+    import base64
+    import io
+    import tkinter as tk
+    buf = io.BytesIO()
+    img.convert("RGBA").save(buf, format="PNG", compress_level=1)
+    return tk.PhotoImage(master=master, format="png",
+                         data=base64.b64encode(buf.getvalue()).decode("ascii"))
+
+
+def _owner(master):
+    try:
+        return id(master.tk)
+    except Exception:
+        return 0
+
+
 def image(key, size, colour):
     """A PIL RGBA image of the icon for tool `key`, `size` px square."""
     from PIL import Image, ImageDraw
@@ -86,11 +109,10 @@ def image(key, size, colour):
 
 def draw(canvas, key, cx, cy, size, colour, tags=()):
     """Put the icon on a Tk canvas, centred on (cx, cy)."""
-    from PIL import ImageTk
-    cache_key = (key, int(round(size)), colour)
+    cache_key = (key, int(round(size)), colour, _owner(canvas))
     photo = _cache.get(cache_key)
     if photo is None:
-        photo = ImageTk.PhotoImage(image(key, size, colour))
+        photo = to_tk(image(key, size, colour), canvas)
         _cache[cache_key] = photo          # Tk needs the image kept alive
     canvas.create_image(cx, cy, image=photo, tags=tags)
     return photo
@@ -100,12 +122,12 @@ def draw(canvas, key, cx, cy, size, colour, tags=()):
 _pills = {}
 
 
-def pill(width, height, fill, outline=None):
+def pill(width, height, fill, outline=None, master=None):
     """A smooth rounded pill (anti-aliased, unlike Tk's own shapes on
     Windows) as a Tk image, `width` x `height` px."""
-    from PIL import Image, ImageDraw, ImageTk
+    from PIL import Image, ImageDraw
     w, h = max(4, int(round(width))), max(4, int(round(height)))
-    key = (w, h, fill, outline)
+    key = (w, h, fill, outline, _owner(master))
     photo = _pills.get(key)
     if photo is not None:
         return photo
@@ -122,6 +144,6 @@ def pill(width, height, fill, outline=None):
     img = img.resize((w, h), Image.LANCZOS)
     # On Windows the soft edge blends towards the see-through key colour
     # (near black): a hairline of dark, invisible against the dark pills.
-    photo = ImageTk.PhotoImage(img)
+    photo = to_tk(img, master)
     _pills[key] = photo
     return photo

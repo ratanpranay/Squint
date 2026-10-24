@@ -20,6 +20,16 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Mac: the ring showed only text** (no glass, buttons, icons or action
+  pills). Its pictures are now handed to the Mac in a way every Mac
+  reads, and plain shapes are drawn underneath as a backup.
+
+---
+
 ## 1.58.0 — 2026-10-24
 
 ### Changed
