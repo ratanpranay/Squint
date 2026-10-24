@@ -36,7 +36,10 @@ if [ ! -x "$RUNTIME/bin/python3" ] || [ ! -d "$RUNTIME/lib/tk8.6" ]; then
     for TAG in $TAGS; do
         echo "[dmg] finding Python 3.12 with Tk 8.6 for $TRIPLE in $TAG ..."
         API="https://api.github.com/repos/astral-sh/python-build-standalone/releases/tags/$TAG"
-        RELEASE="$(curl -fsSL "$API" || true)"
+        # On GitHub's build machines the token avoids the shared rate limit.
+        AUTH=()
+        [ -n "${GH_TOKEN:-}" ] && AUTH=(-H "Authorization: Bearer $GH_TOKEN")
+        RELEASE="$(curl -fsSL ${AUTH[@]+"${AUTH[@]}"} "$API" || true)"
         URL="$(printf '%s' "$RELEASE" | grep -Eo "https://[^\"]*/cpython-3\.12\.[0-9]+(%2B|\+)[0-9]+-$TRIPLE-install_only\.tar\.gz" | head -1)"
         [ -z "$URL" ] && continue
         SUMS="$(printf '%s' "$RELEASE" | grep -Eo 'https://[^"]*/SHA256SUMS' | head -1)"

@@ -24,7 +24,12 @@ it, so there is exactly one copy to keep true.
 
 ### Changed
 
-- **Frosted-glass ring**: what is behind the ring shows through, blurred.
+- **Frosted-glass ring** that follows your system: white glass in light
+  mode, dark glass in dark mode. What is behind it shows through, blurred.
+- **A colour for each tool**: Capture blue, Record red, Translate teal,
+  PDF orange, Zip purple, Transfers green, Calendar yellow, Extract pink.
+  The picked tool and its lit action fill with that colour.
+- **No disc in the middle**: the heart, time and text float on the glass.
 - **Actions bloom out of the ring**: picking a tool shows its actions as
   pills right beside it (click, or press the letter). The panel now only
   opens for settings, progress, the calendar and the QR code. Each tool's
@@ -36,8 +41,15 @@ it, so there is exactly one copy to keep true.
 - The key hint under the ring sits on a dark card, so it reads on white
   pages too.
 
+### Fixed
+
+- **Mac: the Selfie check closed Squint when installed from the disk
+  image** (the app did not say why it uses the camera).
+
 ### Added
 
+- **Mac disk images built automatically** with every release, for Apple
+  Silicon and Intel Macs.
 - **Week numbers in the calendar**: a "Wk" column beside every week, and
   the week number next to the chosen day.
 

@@ -33,6 +33,23 @@ ITEM_LINE = "#3A404C"
 HUB_BG = "#11131A"
 HEART = "#F0506E"
 
+# The ring follows the system: light glass in light mode, dark in dark.
+# (The panel beside it stays dark in both.)
+DARK = {"glass": "#181B22", "glass_mix": 0.72, "ring_line": "#4A505C",
+        "item": "#262A33", "item_line": "#3A404C", "label": "#E6E9EF",
+        "title": "#FFFFFF", "sub": "#B9C0CC", "agenda": "#F2C94C",
+        "pill": "#262A33", "pill_line": "#4A505C", "pill_text": "#FFFFFF",
+        "pill_key": "#8A93A3", "pill_quiet": "#1E2129",
+        "quiet_text": "#B9C0CC", "card": (17, 19, 26, 235),
+        "card_text": "#C9CED8", "heart": "#C8546A"}
+LIGHT = {"glass": "#FFFFFF", "glass_mix": 0.62, "ring_line": "#D9DDE5",
+         "item": "#FFFFFF", "item_line": "#E3E6EC", "label": "#2A2F3A",
+         "title": "#1E2129", "sub": "#6B7280", "agenda": "#B7791F",
+         "pill": "#FFFFFF", "pill_line": "#E1E4EA", "pill_text": "#1E2129",
+         "pill_key": "#9CA3AF", "pill_quiet": "#F3F4F7",
+         "quiet_text": "#4B5563", "card": (255, 255, 255, 235),
+         "card_text": "#4B5563", "heart": "#E0506E"}
+
 
 class RadialMenu:
     current = None
@@ -70,6 +87,7 @@ class RadialMenu:
             pass
         self.s = s = max(1.0, scale)
         left, top, width, height = mon
+        self.th = LIGHT if common.system_light() else DARK
         self.bloom = []             # (x0, y0, x1, y1, j) of the action pills
         self._bloom_hover = None
         self._clock_text = None
@@ -196,7 +214,9 @@ class RadialMenu:
             img = small.resize((2 * r, 2 * r), Image.BICUBIC)
             from PIL import ImageEnhance
             img = ImageEnhance.Color(img).enhance(1.5)
-            img = Image.blend(img, Image.new("RGB", img.size, RING_BG), 0.72)
+            th = self.th
+            img = Image.blend(img, Image.new("RGB", img.size, th["glass"]),
+                              th["glass_mix"])
             mask = Image.new("L", img.size, 0)
             ImageDraw.Draw(mask).ellipse((0, 0, 2 * r - 1, 2 * r - 1),
                                          fill=255)
@@ -206,6 +226,20 @@ class RadialMenu:
         except Exception as exc:          # noqa: BLE001 - plain ring then
             common.log("frosted ring off: %r" % exc)
             return None
+
+    def _glow(self, colour, radius):
+        cache = self.__dict__.setdefault("_glows", {})
+        key = (colour, int(radius))
+        if key not in cache:
+            from PIL import Image, ImageDraw, ImageFilter, ImageTk
+            size = int(radius * 2 + 12)
+            img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+            rgb = tuple(int(colour[k:k + 2], 16) for k in (1, 3, 5))
+            ImageDraw.Draw(img).ellipse((6, 6, size - 6, size - 6),
+                                        fill=rgb + (80,))
+            img = img.filter(ImageFilter.GaussianBlur(3))
+            cache[key] = ImageTk.PhotoImage(img)
+        return cache[key]
 
     def _tick_clock(self):
         """The time in the middle stays current."""
@@ -228,25 +262,31 @@ class RadialMenu:
         if self._glass is not None:
             c.create_image(cx, cy, image=self._glass, tags="ring")
             c.create_oval(cx - r, cy - r, cx + r, cy + r, fill="",
-                          outline="#4A505C", width=max(1, int(1.5 * s)),
-                          tags="ring")
+                          outline=self.th["ring_line"],
+                          width=max(1, int(1.5 * s)), tags="ring")
         else:
-            c.create_oval(cx - r, cy - r, cx + r, cy + r, fill=RING_BG,
-                          outline="#343944", width=max(1, int(s)),
-                          tags="ring")
+            c.create_oval(cx - r, cy - r, cx + r, cy + r,
+                          fill=self.th["glass"], outline=self.th["ring_line"],
+                          width=max(1, int(s)), tags="ring")
         self.item_hits = []
         for i, tool in enumerate(self.tools):
             x, y, _a = self._item_xy(i)
             rr = 42 * s
             on = i == self.selected
-            fg = "#FFFFFF" if on else "#D5D9E2"
-            c.create_oval(x - rr, y - rr, x + rr, y + rr,
-                          fill=common.ACCENT if on else ITEM_BG,
-                          outline=common.ACCENT if on else ITEM_LINE,
-                          width=max(1, int(s)), tags="ring")
+            colour = tool.get("colour", common.ACCENT)
+            th = self.th
+            if on:
+                # A soft glow in the tool's colour around it.
+                glow = self._glow(colour, rr + 11 * s)
+                c.create_image(x, y, image=glow, tags="ring")
+            disc = icons.pill(2 * rr, 2 * rr, colour if on else th["item"],
+                              colour if on else th["item_line"])
+            c.create_image(x, y, image=disc, tags="ring")
             # Drawn, not taken from a font: the same on Windows and Mac.
-            icons.draw(c, tool["key"], x, y - 8 * s, 22 * s, fg, tags="ring")
-            c.create_text(x, y + 17 * s, text=tool["label"], fill=fg,
+            icons.draw(c, tool["key"], x, y - 8 * s, 22 * s,
+                       "#FFFFFF" if on else colour, tags="ring")
+            c.create_text(x, y + 17 * s, text=tool["label"],
+                          fill="#FFFFFF" if on else th["label"],
                           font=self.f(11, True), tags="ring")
             self.item_hits.append((x, y, rr))
         if self.hub_qr:
@@ -283,7 +323,7 @@ class RadialMenu:
                     "back" % len(self.tools))
         hint_id = c.create_text(cx, cy + r + 14 * s, text=hint, anchor="n",
                                 width=380 * s, justify="center",
-                                fill="#C9CED8", font=self.f(11),
+                                fill=self.th["card_text"], font=self.f(11),
                                 tags=("ring", "hint"))
         # On a dark card, so it reads on a white page as well.
         x0, y0, x1, y1 = c.bbox(hint_id)
@@ -298,24 +338,22 @@ class RadialMenu:
 
     def _draw_hub(self):
         c, s, cx, cy = self.canvas, self.s, self.cx, self.cy
-        hr = 66 * s
-        c.create_oval(cx - hr, cy - hr, cx + hr, cy + hr, fill=HUB_BG,
-                      outline=ITEM_LINE, width=max(1, int(s)), tags="ring")
+        # No disc: the heart and the words float on the glass.
         # Support, at the top of the hub, whatever else it shows.
         hx, hy = cx, cy - 40 * s
         self.heart_hit = (hx, hy, 14 * s)
         self._heart(hx, hy, (9.5 if self.heart_hover else 8) * s,
-                    HEART if self.heart_hover else "#C8546A")
+                    HEART if self.heart_hover else self.th["heart"])
         if self.selected is None and not self.heart_hover:
             self._draw_clock()
             return
         title = "Support Squint" if self.heart_hover else \
             self.tools[self.selected]["full"]
-        c.create_text(cx, cy + 2 * s, text=title, fill="#FFFFFF",
+        c.create_text(cx, cy + 2 * s, text=title, fill=self.th["title"],
                       font=self.f(14, True), width=110 * s, justify="center",
                       tags="ring")
         c.create_text(cx, cy + 30 * s, text=self.shortcut,
-                      fill=common.MUTED, font=self.f(11), tags="ring")
+                      fill=self.th["sub"], font=self.f(11), tags="ring")
 
     def _draw_clock(self):
         """The middle when nothing is picked: time, date and week, and the
@@ -324,14 +362,15 @@ class RadialMenu:
         c, s, cx, cy = self.canvas, self.s, self.cx, self.cy
         now = dt.datetime.now()
         self._clock_text = now.strftime("%H:%M")
-        c.create_text(cx, cy - 10 * s, text=self._clock_text, fill="#FFFFFF",
+        c.create_text(cx, cy - 10 * s, text=self._clock_text,
+                      fill=self.th["title"],
                       font=self.f(28, True), tags="ring")
         c.create_text(cx, cy + 14 * s,
                       text="%s %d %s  ·  Wk %d" % (now.strftime("%a"),
                                                    now.day,
                                                    now.strftime("%b"),
                                                    now.isocalendar()[1]),
-                      fill="#B9C0CC", font=self.f(11), tags="ring")
+                      fill=self.th["sub"], font=self.f(11), tags="ring")
         try:
             from . import calendar_view
             nxt = calendar_view.next_item(now)
@@ -346,7 +385,8 @@ class RadialMenu:
                 text = text[:-1]
             text = text.rstrip() + "…"
         c.create_text(cx, cy + 33 * s, text=text,
-                      fill="#F2C94C" if nxt else common.MUTED, font=font,
+                      fill=self.th["agenda"] if nxt else self.th["sub"],
+                      font=font,
                       tags=("ring", "agenda"))
 
     def _pill(self, x0, y0, x1, y1, r, **kw):
@@ -571,14 +611,16 @@ class RadialMenu:
         for key, label, j in items:
             tag = "bloom_%s" % j
             special = j == "top"
-            kid = c.create_text(0, 0, text=key, anchor="w", fill="#8A93A3",
+            kid = c.create_text(0, 0, text=key, anchor="w",
+                                fill=self.th["pill_key"],
                                 font=self.f(11, True),
                                 tags=("bloom", tag, tag + "_key")) \
                 if key else None
             lid = c.create_text(0, 0, text=label, anchor="w",
-                                fill="#B9C0CC" if special else "#FFFFFF",
+                                fill=self.th["quiet_text"] if special
+                                else self.th["pill_text"],
                                 font=self.f(12) if special else self.f(13),
-                                tags=("bloom", tag))
+                                tags=("bloom", tag, tag + "_text"))
             lx0, _y0, lx1, _y1 = c.bbox(lid)
             pad = 14 * s
             inner = (16 * s if key else 0) + (lx1 - lx0)
@@ -618,9 +660,11 @@ class RadialMenu:
                 items, texts, boxes):
             tag = "bloom_%s" % j
             special = j == "top"
-            normal = icons.pill(w, h, common.PANEL if special else ITEM_BG,
-                                "#4A505C")
-            lit = icons.pill(w, h, common.ACCENT, common.ACCENT)
+            th = self.th
+            normal = icons.pill(w, h, th["pill_quiet"] if special
+                                else th["pill"], th["pill_line"])
+            colour = tool.get("colour", common.ACCENT)
+            lit = icons.pill(w, h, colour, colour)
             self._bloom_images[j] = (normal, lit)
             c.create_image(x0, y0, image=normal, anchor="nw",
                            tags=("bloom", tag, tag + "_bg"))
@@ -640,6 +684,9 @@ class RadialMenu:
             c.tag_bind(tag, "<Leave>", lambda _e: c.configure(cursor=""))
         c.tag_raise("bloom")
         c.tag_raise(self.panel_item)
+        # The first action is lit: Enter runs it.
+        if self.bloom:
+            self._paint_bloom(self.bloom[0][4])
 
     def _card_image(self, w, h):
         from PIL import Image, ImageDraw, ImageTk
@@ -648,7 +695,7 @@ class RadialMenu:
         img = Image.new("RGBA", (w * k, h * k), (0, 0, 0, 0))
         ImageDraw.Draw(img).rounded_rectangle(
             (0, 0, w * k - 1, h * k - 1), int(10 * self.s * k),
-            fill=(17, 19, 26, 255))
+            fill=self.th["card"])
         return ImageTk.PhotoImage(img.resize((w, h), Image.LANCZOS))
 
     def _hit_bloom(self, x, y):
@@ -658,7 +705,8 @@ class RadialMenu:
         return None
 
     def _paint_bloom(self, j):
-        if j == self._bloom_hover:
+        if j == self._bloom_hover or j is None:
+            # Off the pills, the last one lit stays lit (Enter runs it).
             return
         c = self.canvas
         images = getattr(self, "_bloom_images", {})
@@ -666,9 +714,12 @@ class RadialMenu:
             if old is None or old not in images:
                 continue
             tag = "bloom_%s" % old
+            special = old == "top"
             c.itemconfigure(tag + "_bg", image=images[old][1 if on else 0])
-            c.itemconfigure(tag + "_key", fill="#DCE6FF" if on
-                            else "#8A93A3")
+            c.itemconfigure(tag + "_key", fill="#FFFFFF" if on
+                            else self.th["pill_key"])
+            c.itemconfigure(tag + "_text", fill="#FFFFFF" if on else (
+                self.th["quiet_text"] if special else self.th["pill_text"]))
         self._bloom_hover = j
 
     def _bloom_pick(self, j):
@@ -810,7 +861,11 @@ class RadialMenu:
             return
         rows = self.tools[self.selected]["rows"]
         if e.keysym in ("Return", "KP_Enter") and rows:  # noqa
-            self.run_action(0)
+            lit = self._bloom_hover
+            if lit == "top":
+                self._bloom_pick("top")
+            else:
+                self.run_action(lit if isinstance(lit, int) else 0)
             return
         if ch and "a" <= ch <= "z" and ord(ch) - 97 < len(rows):
             self.run_action(ord(ch) - 97)

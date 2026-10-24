@@ -52,9 +52,15 @@ def _tool_list():
     def ext(action):
         return lambda ctrl, **kw: docs.extract_cmd(ctrl, action, **kw)
 
+    # Each tool's own colour: its icon, and its fill once picked.
+    colours = {"shot": "#3D7BF5", "rec": "#F05252", "trans": "#14A8C4",
+               "pdf": "#F08C3A", "zip": "#9B6BF2", "send": "#22A86E",
+               "cal": "#E0A800", "ext": "#E0609F"}
+
     def tool(key, label, full, glyph, rows, note="", **extra):
         d = {"key": key, "label": label, "full": full, "glyph": glyph,
-             "rows": rows, "note": note}
+             "rows": rows, "note": note,
+             "colour": colours.get(key, common.ACCENT)}
         d.update(extra)
         return d
 

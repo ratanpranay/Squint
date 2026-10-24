@@ -332,6 +332,10 @@ def main():
             "Squint uses this to show translations over other apps.",
         "NSScreenCaptureUsageDescription":
             "Squint reads text from the area of the screen you select.",
+        # Without it macOS ends the app the moment the camera is asked for
+        # (the Selfie check in the tools ring).
+        "NSCameraUsageDescription":
+            "Squint shows your camera for the Selfie check.",
     }
     if has_icon:
         info["CFBundleIconFile"] = "icon"

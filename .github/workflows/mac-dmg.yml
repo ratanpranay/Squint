@@ -1,0 +1,51 @@
+# Squint-<version>-arm64.dmg and Squint-<version>-intel.dmg, built on
+# GitHub's own Macs with tools/make_dmg.command.
+#
+# Run by the Release workflow for every release (attached to it), or by
+# hand from the Actions tab: with no tag it only builds, and the disk
+# images are downloadable from the run's page for testing.
+
+name: Mac disk image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the disk images to (empty: only build, for testing)"
+        required: false
+        default: ""
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-14, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the disk image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/make_dmg.command
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg-${{ matrix.runner }}
+          path: dist-dmg/*.dmg
+          compression-level: 0
+
+      - name: Attach to the release
+        if: inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.tag }}" dist-dmg/*.dmg --clobber -R "$GITHUB_REPOSITORY"

@@ -790,3 +790,23 @@ def image_to_clipboard(image):
     finally:
         u32.CloseClipboard()
     return True
+
+
+def system_light():
+    """True when Windows or macOS is set to light mode."""
+    try:
+        if IS_WINDOWS:
+            import winreg
+            with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    r"Software\Microsoft\Windows\CurrentVersion\Themes"
+                    r"\Personalize") as key:
+                return bool(winreg.QueryValueEx(key, "AppsUseLightTheme")[0])
+        if IS_MAC:
+            from Foundation import NSUserDefaults
+            style = NSUserDefaults.standardUserDefaults().stringForKey_(
+                "AppleInterfaceStyle")
+            return str(style or "").lower() != "dark"
+    except Exception:
+        pass
+    return False

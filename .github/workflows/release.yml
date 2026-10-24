@@ -25,6 +25,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      skip: ${{ steps.v.outputs.skip }}
     steps:
       - uses: actions/checkout@v4
 
@@ -87,3 +90,13 @@ jobs:
             --latest \
             dist/Squint.zip dist/version.json \
             dist-installer/Squint-Setup.exe
+
+  # The Mac disk images, built on GitHub's Macs and added to the same
+  # release (Apple Silicon and Intel).
+  mac:
+    needs: release
+    if: needs.release.outputs.skip != '1'
+    uses: ./.github/workflows/mac-dmg.yml
+    with:
+      tag: v${{ needs.release.outputs.version }}
+    secrets: inherit
