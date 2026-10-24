@@ -20,7 +20,7 @@ it, so there is exactly one copy to keep true.
 
 ---
 
-## Unreleased
+## 1.59.0 — 2026-10-24
 
 ### Changed
 
