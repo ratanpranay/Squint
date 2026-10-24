@@ -137,15 +137,23 @@ class CalendarPanel:
 
         grid = tk.Frame(self.body, bg=common.PANEL)
         grid.pack(fill="x", pady=(int(8 * s), 0))
+        # Column 0: the ISO week number ("KW"), as German calendars show it.
+        grid.columnconfigure(0, weight=0, minsize=int(30 * s))
+        tk.Label(grid, text="Wk", bg=common.PANEL, fg="#5F6676",
+                 font=m.f(11, True)).grid(row=0, column=0, sticky="we",
+                                          pady=(0, int(4 * s)))
         for i, name in enumerate(("Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
                                   "Sun")):
-            grid.columnconfigure(i, weight=1, uniform="day")
+            grid.columnconfigure(i + 1, weight=1, uniform="day")
             tk.Label(grid, text=name, bg=common.PANEL, fg=common.MUTED,
-                     font=m.f(11, True)).grid(row=0, column=i, sticky="we",
+                     font=m.f(11, True)).grid(row=0, column=i + 1, sticky="we",
                                               pady=(0, int(4 * s)))
         weeks = calendar.Calendar(0).monthdatescalendar(month.year,
                                                         month.month)
         for r, week in enumerate(weeks):
+            tk.Label(grid, text=str(week[0].isocalendar()[1]) + "\n ",
+                     bg=common.PANEL, fg="#7D8597", font=m.f(11),
+                     pady=int(2 * s)).grid(row=r + 1, column=0, sticky="nsew")
             for c, d in enumerate(week):
                 inside = d.month == month.month
                 marked = d.isoformat() in data
@@ -159,12 +167,13 @@ class CalendarPanel:
                                                           else "\n "),
                                 bg=bg, fg=fg, font=m.f(14), cursor="hand2",
                                 pady=int(2 * s))
-                cell.grid(row=r + 1, column=c, padx=1, pady=1, sticky="nsew")
+                cell.grid(row=r + 1, column=c + 1, padx=1, pady=1, sticky="nsew")
                 cell.bind("<Button-1>", lambda _e, d=d: self.pick(d))
 
         tk.Frame(self.body, bg=common.LINE, height=1).pack(
             fill="x", pady=(int(8 * s), int(6 * s)))
-        tk.Label(self.body, text=day.strftime("%A, %d %B"), bg=common.PANEL,
+        tk.Label(self.body, text="%s  ·  Week %d" % (day.strftime("%A, %d %B"),
+                                          day.isocalendar()[1]), bg=common.PANEL,
                  fg=common.TEXT, font=m.f(14, True), anchor="w").pack(
             fill="x")
         items = data.get(day.isoformat(), [])

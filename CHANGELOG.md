@@ -20,6 +20,15 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Added
+
+- **Week numbers in the calendar**: a "Wk" column beside every week, and
+  the week number next to the chosen day.
+
+---
+
 ## 1.57.0 — 2026-10-23
 
 ### Changed
