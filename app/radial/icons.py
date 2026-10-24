@@ -73,6 +73,10 @@ def image(key, size, colour):
     elif key == "rec":                      # record
         circle(12, 12, 8.5)
         circle(12, 12, 4.2, fill=True)
+    elif key == "tools":                    # four tiles
+        for (xa, ya) in ((3.5, 3.5), (13.5, 3.5), (3.5, 13.5)):
+            rect(xa, ya, xa + 7, ya + 7, 1.8)
+        circle(17, 17, 3.8)
     elif key == "trans":                    # globe
         circle(12, 12, 9)
         d.ellipse((P(8, 3), P(16, 21)), outline=colour, width=w)

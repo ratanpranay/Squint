@@ -738,6 +738,13 @@ class Controller:
                 return
         except Exception:
             pass
+        try:
+            from .radial.menu import RadialMenu
+            if RadialMenu.recently_active():
+                log("dock       : reopen ignored (tools ring)")
+                return
+        except Exception:
+            pass
         self.show_window()
 
     def _start_hotkeys(self):

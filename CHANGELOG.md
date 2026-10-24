@@ -20,6 +20,27 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Translate is replaced by Tools**: Open Downloads (the Downloads/Squint
+  folder where everything is saved), Calculator, and Squint (opens
+  Squint's main window). Translating still has Squint's own shortcuts.
+- **Copy text (OCR) moved to Capture.**
+
+### Added
+
+- **Calculator** in the panel: type or tap, the answer shows as you go;
+  + − × ÷ % ^ and brackets, decimal commas too. The last five sums stay;
+  click one to use (and copy) its answer.
+
+### Fixed
+
+- **Mac: Option+Space opened Squint's main window under the ring.**
+
+---
+
 ## 1.59.0 — 2026-10-24
 
 ### Changed

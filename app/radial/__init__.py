@@ -41,7 +41,7 @@ def _tools():
 
 
 def _tool_list():
-    from . import calendar_view, capture, docs, record, send
+    from . import calendar_view, capture, docs, record, send, tools
 
     def pdf(action):
         return lambda ctrl, **kw: docs.pdf_cmd(ctrl, action, **kw)
@@ -53,7 +53,7 @@ def _tool_list():
         return lambda ctrl, **kw: docs.extract_cmd(ctrl, action, **kw)
 
     # Each tool's own colour: its icon, and its fill once picked.
-    colours = {"shot": "#3D7BF5", "rec": "#F05252", "trans": "#14A8C4",
+    colours = {"shot": "#3D7BF5", "rec": "#F05252", "tools": "#14A8C4",
                "pdf": "#F08C3A", "zip": "#9B6BF2", "send": "#22A86E",
                "cal": "#E0A800", "ext": "#E0609F"}
 
@@ -68,6 +68,7 @@ def _tool_list():
         tool("shot", "Capture", "Screenshot", "",
              [("Region", capture.region, False, SCREEN),
               ("Scrolling", capture.scrolling, False, SCREEN),
+              ("Copy text (OCR)", capture.copy_text, False, SCREEN),
               ("Selfie check", capture.selfie, False, PANEL)],
              "Scrolling: scroll down inside the box, Enter to finish. "
              "Saved in Downloads\\Squint\\Screenshots."),
@@ -78,13 +79,12 @@ def _tool_list():
              "Enter stops, Esc cancels; GIF stops at 6 s. Video to MP4 "
              "takes MOV, MKV, AVI, WMV, WebM and more. "
              "Saved in Downloads\\Squint\\Recordings."),
-        tool("trans", "Translate", "Translate & OCR", "",
-             [("Translate region", _squint("trigger_snip"), False, SCREEN),
-              ("Copy text (OCR)", capture.copy_text, False, SCREEN),
-              ("Translate document", _squint("document"), False, SCREEN),
-              ("Translate clipboard", _squint("trigger_clipboard"), False,
-               SCREEN)],
-             "Powered by Squint. Its own shortcuts still work directly."),
+        tool("tools", "Tools", "Tools", "",
+             [("Open Downloads", tools.open_downloads, False, SCREEN),
+              ("Calculator", tools.calculator, False, PANEL),
+              ("Squint", tools.open_squint, False, SCREEN)],
+             "Open Downloads shows Downloads\\Squint, where every tool "
+             "saves. Squint opens its main window."),
         tool("pdf", "PDF", "PDF tools", "",
              [("Convert to PDF", pdf("to_pdf"), True, PANEL),
               ("Merge", pdf("merge"), True, PANEL),

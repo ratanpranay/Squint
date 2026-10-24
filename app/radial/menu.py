@@ -53,6 +53,16 @@ LIGHT = {"glass": "#FFFFFF", "glass_mix": 0.62, "ring_line": "#D9DDE5",
 
 class RadialMenu:
     current = None
+    closed_at = 0.0
+
+    @classmethod
+    def recently_active(cls, seconds=2.5):
+        """Up, or closed a moment ago: the Mac's "show the main window"
+        request that comes with Squint being brought forward is the ring's
+        doing then, not the person's."""
+        import time
+        return cls.current is not None or \
+            time.time() - cls.closed_at < seconds
 
     def __init__(self, ctrl, tools, front=None, support_url="",
                  shortcut="Alt + Space"):
@@ -980,13 +990,10 @@ class RadialMenu:
 
     def _take_focus(self):
         if IS_MAC:
-            # No focus_force here: on a Mac it activates Squint, and that
-            # brings Squint's own window up with the ring.
+            # No focus_force and no lift here: on a Mac both bring Squint
+            # forward as an app, and macOS then asks for its main window
+            # too. The window is already topmost.
             self._mac_front()
-            try:
-                self.win.lift()
-            except tk.TclError:
-                pass
             return
         try:
             self.win.lift()
@@ -1213,6 +1220,8 @@ class RadialMenu:
         if IS_MAC:
             self._mac_hand_back()
         RadialMenu.current = None
+        import time
+        RadialMenu.closed_at = time.time()
         try:
             self.win.destroy()
         except Exception:

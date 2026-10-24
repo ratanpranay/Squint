@@ -115,11 +115,23 @@ class Video(unittest.TestCase):
         self.assertIn(os.path.join("Squint", "Recordings"), out)
 
 
+class Calculator(unittest.TestCase):
+    def test_sums(self):
+        from app.radial.tools import calculate, show
+        cases = {"1250*1.19": "1487.5", "12,5+1": "13.5", "200*15%": "30",
+                 "2^10": "1024", "(3+4)×2": "14", "7÷2": "3.5",
+                 "0.1+0.2": "0.3"}
+        for text, want in cases.items():
+            self.assertEqual(show(calculate(text)), want, text)
+        for bad in ("1/0", "abc", "__import__('os')", "10-", "9**99999"):
+            self.assertIsNone(calculate(bad), bad)
+
+
 class Tools(unittest.TestCase):
     def test_eight_tools_no_convert(self):
         keys = [t["key"] for t in __import__("app.radial",
                                              fromlist=["_tools"])._tools()]
-        self.assertEqual(keys, ["shot", "rec", "trans", "pdf", "zip", "send",
+        self.assertEqual(keys, ["shot", "rec", "tools", "pdf", "zip", "send",
                                 "cal", "ext"])
 
 
@@ -241,7 +253,7 @@ class QrAndIcons(unittest.TestCase):
             self.assertEqual(decode(img)[0].data.decode(), text)
 
     def test_icons(self):
-        for key in ("shot", "rec", "trans", "pdf", "zip", "send", "cal",
+        for key in ("shot", "rec", "tools", "pdf", "zip", "send", "cal",
                     "ext"):
             img = icons.image(key, 22, "#FFFFFF")
             self.assertEqual(img.size, (22, 22))
