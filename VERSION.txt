@@ -1,4 +1,4 @@
-Squint 1.59.0
+Squint 1.58.1
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,20 +22,6 @@ was wrong, not only that it was.
 
 
 
-
-1.59.0
-
-  - Picking is mouse-only: _key does nothing, _mac_keys removed, no
-    letters on pills; Esc still backs out / closes.
-  - common.apply_theme(light, panel_tone): the whole panel palette (and
-    toasts/bars) follows the ring's theme, the panel in the glass's
-    average tone. Panel is a frame on a rounded card image drawn on the
-    canvas, inset 8 px so the card's corners show.
-  - common.PillButton (canvas: smooth pill image over plain shapes)
-    replaces tk.Button/FlatButton for every panel button, choice and row;
-    calendar days are PillButtons with a dot for planned days.
-  - menu.show_choices(): second-level choices bloom as pills with Back
-    (Phone via QR).
 
 1.58.1
 
