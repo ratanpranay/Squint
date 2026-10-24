@@ -1,4 +1,4 @@
-Squint 1.58.0
+Squint 1.58.1
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,14 @@ was wrong, not only that it was.
 
 
 
+
+1.58.1
+
+  - Ring images (glass, discs, icons, pills, cards) go to Tk as base64 PNG
+    via tk.PhotoImage(master=..., data=...), not ImageTk: in the Mac app
+    Pillow's Tk bridge produced blank images without raising, so
+    tk_images' fallback never kicked in. Image caches are keyed by
+    interpreter. Canvas shapes are drawn under every image as a backup.
 
 1.58.0
 
