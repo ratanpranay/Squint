@@ -1,4 +1,4 @@
-Squint 1.57.0
+Squint 1.58.0
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,24 @@ was wrong, not only that it was.
 
 
 
+
+1.58.0
+
+  - Ring: frosted glass is a blurred, tinted mss snapshot under the ring,
+    taken before the window maps; theme from AppsUseLightTheme (Windows) /
+    AppleInterfaceStyle (Mac). Items, pills and glow are PIL RGBA images
+    (Tk shapes are not anti-aliased on Windows). Plain ring if the screen
+    cannot be read.
+  - Actions are canvas pills beside the tool (show_list no longer fills
+    the panel); the first is lit and Enter runs the lit one. Tool notes go
+    in the hint card under the ring. Bottom tools put their column at the
+    side so that card stays free.
+  - Hub has no disc; idle shows time, date + ISO week, and
+    calendar_view.next_item().
+  - Calendar month grid has an ISO week column.
+  - make_dmg.py Info.plist gains NSCameraUsageDescription (TCC killed the
+    app on Selfie check). mac-dmg.yml builds the arm64 disk image on
+    macos-14 and attaches it to each release.
 
 1.57.0
 
