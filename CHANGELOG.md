@@ -27,7 +27,9 @@ it, so there is exactly one copy to keep true.
 - **Frosted-glass ring**: what is behind the ring shows through, blurred.
 - **Actions bloom out of the ring**: picking a tool shows its actions as
   pills right beside it (click, or press the letter). The panel now only
-  opens for settings, progress, the calendar and the QR code. Transfers
+  opens for settings, progress, the calendar and the QR code. Each tool's
+  note (where files are saved and so on) shows in one place, under the
+  ring. Transfers
   shows your name as a pill; click it to change it.
 - **Live centre**: when nothing is picked, the middle shows the time, the
   date, the week number and your next appointment. The ♥ stays on top.

@@ -274,10 +274,15 @@ class RadialMenu:
                        lambda _e: c.configure(cursor="hand2"))
             c.tag_bind("support_line", "<Leave>",
                        lambda _e: c.configure(cursor=""))
+        elif self.selected is not None and \
+                self.tools[self.selected].get("note"):
+            # The picked tool's note, always in this one place.
+            hint = self.tools[self.selected]["note"]
         else:
             hint = ("1–%d picks a tool · letters pick an action · Esc goes "
                     "back" % len(self.tools))
-        hint_id = c.create_text(cx, cy + r + 24 * s, text=hint,
+        hint_id = c.create_text(cx, cy + r + 14 * s, text=hint, anchor="n",
+                                width=380 * s, justify="center",
                                 fill="#C9CED8", font=self.f(11),
                                 tags=("ring", "hint"))
         # On a dark card, so it reads on a white page as well.
@@ -479,10 +484,6 @@ class RadialMenu:
         for bx0, by0, bx1, by1, _j in self.bloom:
             if not (x1 < bx0 or x0 > bx1 or y1 < by0 or y0 > by1):
                 covered = True
-        note = c.bbox("bloom_note_bg")
-        if note and not (x1 < note[0] or x0 > note[2] or
-                         y1 < note[1] or y0 > note[3]):
-            covered = True
         pb = getattr(self, "panel_box", None)
         if pb and c.itemcget(self.panel_item, "state") != "hidden":
             left, top, w, h = pb
@@ -588,12 +589,15 @@ class RadialMenu:
         rb = 214 * s
         n = len(items)
         boxes = []
-        if abs(co) >= 0.3:
-            # Beside the ring: a column that hugs the ring's edge.
-            side = 1 if co > 0 else -1
+        if abs(co) >= 0.3 or si > 0:
+            # Beside the ring: a column that hugs the ring's edge, ending
+            # above the note under the ring. (A tool at the bottom puts
+            # its column at the side too, to keep that space free.)
+            side = 1 if co >= 0 else -1
             y0 = iy - (n - 1) / 2.0 * step
-            y0 = min(max(y0, 8 * s + h / 2.0),
-                     mh - 60 * s - h / 2.0 - (n - 1) * step)
+            lowest = self.cy + 200 * s + 4 * s - h / 2.0
+            y0 = min(y0, lowest - (n - 1) * step)
+            y0 = max(y0, 8 * s + h / 2.0)
             for k, (_kid, _lid, w) in enumerate(texts):
                 y = y0 + k * step
                 dy = y - self.cy
@@ -603,12 +607,9 @@ class RadialMenu:
                 x0 = min(max(x0, 8 * s), mw - w - 8 * s)
                 boxes.append((x0, y - h / 2.0, x0 + w, y + h / 2.0))
         else:
-            # Above or below the ring: a column going outwards.
+            # Above the ring: a column going upwards.
             for k, (_kid, _lid, w) in enumerate(texts):
-                if si > 0:
-                    y = self.cy + rb + h / 2.0 + k * step
-                else:
-                    y = self.cy - rb - h / 2.0 - (n - 1 - k) * step
+                y = self.cy - rb - h / 2.0 - (n - 1 - k) * step
                 x0 = min(max(self.cx - w / 2.0, 8 * s), mw - w - 8 * s)
                 boxes.append((x0, y - h / 2.0, x0 + w, y + h / 2.0))
         self.bloom = []
@@ -632,36 +633,6 @@ class RadialMenu:
                 tx += 16 * s
             c.coords(lid, tx, ym)
             self.bloom.append((x0, y0, x1, y1, j))
-        note = tool.get("note")
-        if note and boxes:
-            width = 280 * s
-            if abs(co) >= 0.3:
-                last = boxes[-1]
-                nx = last[0] + 6 * s if co > 0 else last[2] - 6 * s
-                anchor = "nw" if co > 0 else "ne"
-                ny = last[3] + 12 * s
-            elif si > 0:
-                nx, anchor, ny = self.cx, "n", boxes[-1][3] + 12 * s
-            else:
-                nx, anchor, ny = self.cx, "s", boxes[0][1] - 12 * s
-            text = c.create_text(nx, ny, text=note, anchor=anchor,
-                                 width=width, fill="#C9CED8",
-                                 font=self.f(11), tags=("bloom", "bloom_note"))
-            bx0, by0, bx1, by1 = c.bbox(text)
-            pad_x, pad_y = 10 * s, 6 * s
-            dx = max(0, 8 * s + pad_x - bx0) - \
-                max(0, bx1 + pad_x - (mw - 8 * s))
-            dy = max(0, 8 * s + pad_y - by0) - \
-                max(0, by1 + pad_y - (mh - 8 * s))
-            c.move(text, dx, dy)
-            bx0, by0, bx1, by1 = c.bbox(text)
-            box_w = bx1 - bx0 + 2 * pad_x
-            box_h = by1 - by0 + 2 * pad_y
-            # A rounded card, not a pill: the note can be two lines.
-            self._note_image = self._card_image(box_w, box_h)
-            c.create_image(bx0 - pad_x, by0 - pad_y, image=self._note_image,
-                           anchor="nw", tags=("bloom", "bloom_note_bg"))
-            c.tag_lower("bloom_note_bg", text)
         for _x0, _y0, _x1, _y1, j in self.bloom:
             tag = "bloom_%s" % j
             c.tag_bind(tag, "<Enter>",
