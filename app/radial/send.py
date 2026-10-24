@@ -626,24 +626,22 @@ def phone_cmd(ctrl, selection=None, menu=None, **_):
                         else "these %d files" % len(files)), files)
         return
 
-    def build(frame):
-        menu.header(frame, "Phone via QR", close=True)
+    def send_to_phone():
+        chosen = common.pick_files(ctrl, "Files for the phone",
+                                   [("All files", "*.*")])
+        if chosen:
+            phone_cmd(ctrl, chosen, menu)
+        elif not menu.closed:
+            menu.select(menu.selected)
 
-        def send_to_phone():
-            chosen = common.pick_files(ctrl, "Files for the phone",
-                                       [("All files", "*.*")])
-            if chosen:
-                phone_cmd(ctrl, chosen, menu)
-
-        here = "this Mac" if common.IS_MAC else "this PC"
-        menu.row(frame, "From phone to " + here, lambda: _share_view(
+    here = "this Mac" if common.IS_MAC else "this PC"
+    menu.show_choices(
+        [("From phone to " + here, lambda: _share_view(
             ctrl, menu, "Phone via QR", "Scan the code with the phone's "
-            "camera, then choose the photos or files to send."), "A")
-        menu.row(frame, "From %s to phone" % here,
-                 send_to_phone, "B")
-        menu.note(frame, "Phone and computer must be on the same Wi-Fi.")
-
-    menu.show_view(build, pinned=True, name="phone")
+            "camera, then choose the photos or files to send.")),
+         ("From %s to phone" % here, send_to_phone)],
+        "Phone via QR: the phone and this computer must be on the same "
+        "Wi-Fi.")
 
 
 def nearby_cmd(ctrl, selection=None, menu=None, **_):

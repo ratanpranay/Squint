@@ -29,6 +29,9 @@ it, so there is exactly one copy to keep true.
 - **Panels match the ring**: light or dark with the system, in the tone
   of the frosted glass, with rounded corners. Calendar days are round.
 - **Pill-shaped buttons and choices** in every panel.
+- **Phone via QR's two choices bloom out as pills too**, like every
+  tool's actions, with a Back pill. The panel is only for forms,
+  progress, live lists and the calendar.
 
 ---
 

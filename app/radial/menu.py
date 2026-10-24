@@ -331,6 +331,8 @@ class RadialMenu:
                        lambda _e: c.configure(cursor="hand2"))
             c.tag_bind("support_line", "<Leave>",
                        lambda _e: c.configure(cursor=""))
+        elif getattr(self, "_hint_override", None):
+            hint = self._hint_override
         elif self.selected is not None and \
                 self.tools[self.selected].get("note"):
             # The picked tool's note, always in this one place.
@@ -641,20 +643,21 @@ class RadialMenu:
         self._draw_bloom()
         self._fit_hint()
 
-    def _draw_bloom(self):
+    def _draw_bloom(self, items=None):
         c, s = self.canvas, self.s
         tool = self.tools[self.selected]
-        items = [("", label, j)
-                 for j, (label, _f, _u, _k) in enumerate(tool["rows"])]
-        if tool.get("top_label"):
-            items.append(("", tool["top_label"](), "top"))
+        if items is None:
+            items = [("", label, j)
+                     for j, (label, _f, _u, _k) in enumerate(tool["rows"])]
+            if tool.get("top_label"):
+                items.append(("", tool["top_label"](), "top"))
         h = int(round(32 * s))
         step = h + 8 * s
         # The words first, so each pill is as wide as what is in it.
         texts = []
         for key, label, j in items:
             tag = "bloom_%s" % j
-            special = j == "top"
+            special = j in ("top", "back")
             kid = c.create_text(0, 0, text=key, anchor="w",
                                 fill=self.th["pill_key"],
                                 font=self.f(11, True),
@@ -703,7 +706,7 @@ class RadialMenu:
         for (key, label, j), (kid, lid, w), (x0, y0, x1, y1) in zip(
                 items, texts, boxes):
             tag = "bloom_%s" % j
-            special = j == "top"
+            special = j in ("top", "back")
             th = self.th
             normal = icons.pill(w, h, th["pill_quiet"] if special
                                 else th["pill"], th["pill_line"], master=self.canvas)
@@ -769,7 +772,7 @@ class RadialMenu:
             if old is None or old not in images:
                 continue
             tag = "bloom_%s" % old
-            special = old == "top"
+            special = old in ("top", "back")
             c.itemconfigure(tag + "_bg", image=images[old][1 if on else 0])
             colour = self.tools[self.selected].get("colour", common.ACCENT)
             c.itemconfigure(tag + "_fb", fill=colour if on else (
@@ -780,7 +783,32 @@ class RadialMenu:
                 self.th["quiet_text"] if special else self.th["pill_text"]))
         self._bloom_hover = j
 
+    def show_choices(self, choices, note=None):
+        """A second set of actions (Phone via QR: which way), bloomed out
+        of the ring like the first, with Back to return to them."""
+        self.clear_panel()
+        self.pinned = False
+        self.view = "sub"
+        self._panel_show(False)
+        self.panel_box = None
+        self._sub = [fn for _label, fn in choices]
+        self._hint_override = note
+        self._draw_ring()
+        items = [("", label, "sub%d" % k)
+                 for k, (label, _fn) in enumerate(choices)]
+        items.append(("", "‹  Back", "back"))
+        self._draw_bloom(items)
+        self._fit_hint()
+
     def _bloom_pick(self, j):
+        if j == "back":
+            self.back()
+            return
+        if isinstance(j, str) and j.startswith("sub"):
+            fn = self._sub[int(j[3:])]
+            self.pinned = True
+            fn()
+            return
         if j == "top":
             tool = self.tools[self.selected]
 
@@ -838,6 +866,7 @@ class RadialMenu:
 
     def select(self, i):
         self.selected = i
+        self._hint_override = None
         self.heart_hover = False
         self._engaged = False
         self._away = 0
@@ -911,7 +940,9 @@ class RadialMenu:
         return
 
     def _escape(self, _e=None):
-        if self.view in ("list", "hover", "hidden", "idle", "support"):
+        if self.view == "sub":
+            self.back()
+        elif self.view in ("list", "hover", "hidden", "idle", "support"):
             self.close()
         else:
             self.back()
