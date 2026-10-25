@@ -22,6 +22,12 @@ it, so there is exactly one copy to keep true.
 
 ## Unreleased
 
+### Changed
+
+- **The ring is always white frosted glass**, whatever the system's light
+  or dark setting, and whiter than before so it looks the same over any
+  background. Its panels are always light too.
+
 ### Fixed
 
 - **Mac: typing numbers into the calculator did nothing.** The number

@@ -33,8 +33,7 @@ ITEM_LINE = "#3A404C"
 HUB_BG = "#11131A"
 HEART = "#F0506E"
 
-# The ring follows the system: light glass in light mode, dark in dark.
-# (The panel beside it stays dark in both.)
+# The ring is white frosted glass. DARK is kept for reference only.
 DARK = {"glass": "#181B22", "glass_mix": 0.72, "ring_line": "#4A505C",
         "item": "#262A33", "item_line": "#3A404C", "label": "#E6E9EF",
         "title": "#FFFFFF", "sub": "#B9C0CC", "agenda": "#F2C94C",
@@ -42,7 +41,7 @@ DARK = {"glass": "#181B22", "glass_mix": 0.72, "ring_line": "#4A505C",
         "pill_key": "#8A93A3", "pill_quiet": "#1E2129",
         "quiet_text": "#B9C0CC", "card": (17, 19, 26, 235),
         "card_text": "#C9CED8", "heart": "#C8546A"}
-LIGHT = {"glass": "#FFFFFF", "glass_mix": 0.62, "ring_line": "#D9DDE5",
+LIGHT = {"glass": "#FFFFFF", "glass_mix": 0.80, "ring_line": "#D9DDE5",
          "item": "#FFFFFF", "item_line": "#E3E6EC", "label": "#2A2F3A",
          "title": "#1E2129", "sub": "#6B7280", "agenda": "#B7791F",
          "pill": "#FFFFFF", "pill_line": "#E1E4EA", "pill_text": "#1E2129",
@@ -97,7 +96,9 @@ class RadialMenu:
             pass
         self.s = s = max(1.0, scale)
         left, top, width, height = mon
-        self.th = LIGHT if common.system_light() else DARK
+        # Always the white frosted ring (it was light or dark with the
+        # system, and looked different from one day to the next).
+        self.th = LIGHT
         self.bloom = []             # (x0, y0, x1, y1, j) of the action pills
         self._bloom_hover = None
         self._clock_text = None
