@@ -1,4 +1,4 @@
-Squint 1.60.0
+Squint 1.60.1
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,15 @@ was wrong, not only that it was.
 
 
 
+
+1.60.1
+
+  - Mac calculator: the ring's window never gets key events, so
+    tools._mac_typing polls CGEventSourceKeyState every 30 ms (top row,
+    number pad, Shift for + x % ( ), Return, Delete) with key repeat; the
+    entry is read-only there so nothing arrives twice.
+  - Ring theme fixed to LIGHT (glass_mix 0.80) regardless of the system
+    setting.
 
 1.60.0
 
