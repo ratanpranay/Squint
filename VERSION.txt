@@ -1,4 +1,4 @@
-Squint 1.60.2
+Squint 1.61.0
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,13 @@ was wrong, not only that it was.
 
 
 
+
+1.61.0
+
+  - World clock: worldclock.mine() reads the computer's own time, zone
+    abbreviation and UTC offset, and a place from /etc/localtime (Mac) or
+    TimeZoneKeyName (Windows, mapped); difference() gives each city's
+    offset from it. Tiles are canvases on icons.rounded() images.
 
 1.60.2
 
