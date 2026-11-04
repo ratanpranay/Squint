@@ -259,6 +259,27 @@ class WorldClock(unittest.TestCase):
                 self.assertEqual(ours, real.replace(tzinfo=None),
                                  "%s at %s" % (name, utc))
 
+    def test_difference_from_own_time(self):
+        import time
+        old = os.environ.get("TZ")
+        os.environ["TZ"] = "Europe/Berlin"
+        try:
+            time.tzset()
+            now = dt.datetime(2026, 11, 4, 12, 20, tzinfo=dt.timezone.utc)
+            self.assertEqual(worldclock.difference("India", now), "+4:30 h")
+            self.assertEqual(worldclock.difference("California", now), "−9 h")
+            self.assertEqual(worldclock.difference("Frankfurt", now),
+                             "same time")
+            hhmm, wday, zone = worldclock.mine(now)
+            self.assertEqual((hhmm, wday), ("13:20", "Wed"))
+            self.assertIn("UTC+1", zone)
+        finally:
+            if old is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = old
+            time.tzset()
+
     def test_defaults_exist(self):
         for name in worldclock.DEFAULT:
             self.assertIn(name, worldclock.CITIES)

@@ -20,6 +20,17 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **World clock shows your own time first**, on a pale yellow bar, read
+  from the computer, with your place and time zone (e.g. "Berlin · CET
+  (UTC+1)"). Each city shows how far ahead or behind you it is ("+4:30 h",
+  "−9 h", "same time"), and the tiles have rounded corners.
+
+---
+
 ## 1.60.2 — 2026-11-04
 
 ### Changed

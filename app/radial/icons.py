@@ -164,3 +164,27 @@ def pill(width, height, fill, outline=None, master=None, hard=False):
     photo = to_tk(img, master, hard=hard)
     _pills[key] = photo
     return photo
+
+
+def rounded(width, height, radius, fill, outline=None, master=None):
+    """A smooth rounded rectangle (a tile) as a Tk image."""
+    from PIL import Image, ImageDraw
+    w, h = max(4, int(round(width))), max(4, int(round(height)))
+    key = ("tile", w, h, int(radius), fill, outline, _owner(master))
+    photo = _pills.get(key)
+    if photo is not None:
+        return photo
+    k = OVERSAMPLE
+    img = Image.new("RGBA", (w * k, h * k), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    r = int(radius * k)
+    if outline:
+        d.rounded_rectangle((0, 0, w * k - 1, h * k - 1), r, fill=outline)
+        d.rounded_rectangle((k, k, w * k - 1 - k, h * k - 1 - k), r - k,
+                            fill=fill)
+    else:
+        d.rounded_rectangle((0, 0, w * k - 1, h * k - 1), r, fill=fill)
+    photo = to_tk(img.resize((w, h), Image.LANCZOS), master)
+    _pills[key] = photo
+    return photo
+

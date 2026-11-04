@@ -149,3 +149,89 @@ def describe(name, now_utc=None):
     days = (there.date() - here.date()).days
     rel = "" if days == 0 else ("Tomorrow" if days > 0 else "Yesterday")
     return there.strftime("%H:%M"), there.strftime("%a"), rel
+
+
+# -- the computer's own time ----------------------------------------------
+
+# Windows names its zones; the cities those mean, for the "Your time" bar.
+_WINDOWS_ZONES = {
+    "W. Europe Standard Time": "Berlin", "Romance Standard Time": "Paris",
+    "Central Europe Standard Time": "Budapest",
+    "Central European Standard Time": "Warsaw",
+    "GMT Standard Time": "London", "Greenwich Standard Time": "Reykjavik",
+    "E. Europe Standard Time": "Chisinau", "GTB Standard Time": "Athens",
+    "FLE Standard Time": "Helsinki", "Russian Standard Time": "Moscow",
+    "Turkey Standard Time": "Istanbul", "Arabian Standard Time": "Dubai",
+    "India Standard Time": "India", "China Standard Time": "Shanghai",
+    "Singapore Standard Time": "Singapore", "Tokyo Standard Time": "Tokyo",
+    "Korea Standard Time": "Seoul", "AUS Eastern Standard Time": "Sydney",
+    "New Zealand Standard Time": "Auckland",
+    "Pacific Standard Time": "California", "Mountain Standard Time": "Denver",
+    "Central Standard Time": "Chicago", "Eastern Standard Time": "New York",
+    "E. South America Standard Time": "São Paulo",
+    "South Africa Standard Time": "Johannesburg",
+    "W. Central Africa Standard Time": "Lagos",
+    "E. Africa Standard Time": "Nairobi", "Pakistan Standard Time": "Karachi",
+    "Bangladesh Standard Time": "Dhaka", "SE Asia Standard Time": "Bangkok",
+}
+
+
+def _place():
+    """Where the computer's clock is set to, as a place name, or ""."""
+    import sys
+    try:
+        if sys.platform == "win32":
+            import winreg
+            with winreg.OpenKey(
+                    winreg.HKEY_LOCAL_MACHINE,
+                    r"SYSTEM\CurrentControlSet\Control\TimeZoneInformation"
+            ) as key:
+                name = winreg.QueryValueEx(key, "TimeZoneKeyName")[0]
+            return _WINDOWS_ZONES.get(str(name).strip("\x00 "), "")
+        # macOS and Linux: /etc/localtime points into the zone database.
+        target = os.path.realpath("/etc/localtime")
+        if "zoneinfo/" in target:
+            zone = target.split("zoneinfo/", 1)[1]
+            place = zone.rsplit("/", 1)[-1].replace("_", " ")
+            return "" if place.upper() in ("UTC", "UCT", "GMT", "UNIVERSAL",
+                                           "ZULU") else place
+    except Exception:
+        pass
+    return ""
+
+
+def _utc_label(minutes):
+    sign = "+" if minutes >= 0 else "−"
+    h, m = divmod(abs(int(minutes)), 60)
+    return "UTC%s%d%s" % (sign, h, (":%02d" % m) if m else "")
+
+
+def mine(now_utc=None):
+    """The computer's own time: ('13:20', 'Wed', 'Berlin · CET (UTC+1)')."""
+    import time
+    now_utc = now_utc or dt.datetime.now(dt.timezone.utc)
+    here = now_utc.astimezone()
+    offset = here.utcoffset().total_seconds() / 60.0
+    abbr = time.strftime("%Z", time.localtime(now_utc.timestamp()))
+    abbr = abbr if 0 < len(abbr) <= 5 and abbr.isalpha() else ""
+    zone = "%s (%s)" % (abbr, _utc_label(offset)) if abbr \
+        else _utc_label(offset)
+    place = _place()
+    return (here.strftime("%H:%M"), here.strftime("%a"),
+            "%s  ·  %s" % (place, zone) if place else zone)
+
+
+def difference(name, now_utc=None):
+    """How far `name` is from the computer's time: '+4:30 h', '−9 h',
+    'same time'."""
+    now_utc = now_utc or dt.datetime.now(dt.timezone.utc)
+    there, _s = local_time(name, now_utc)
+    utc = now_utc.astimezone(dt.timezone.utc).replace(tzinfo=None)
+    here = now_utc.astimezone()
+    minutes = int(round((there - utc).total_seconds() / 60.0
+                        - here.utcoffset().total_seconds() / 60.0))
+    if minutes == 0:
+        return "same time"
+    sign = "+" if minutes > 0 else "−"
+    h, m = divmod(abs(minutes), 60)
+    return "%s%d%s h" % (sign, h, (":%02d" % m) if m else "")

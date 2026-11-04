@@ -229,41 +229,86 @@ class CalendarPanel:
         m.relayout()
 
     def clocks(self):
-        from . import worldclock
+        """Your own time (from the computer) on a pale yellow bar, then
+        four cities, each with how far ahead or behind you it is."""
+        from . import icons, worldclock
         m, s = self.menu, self.s
+        th = m.th
         tk.Frame(self.body, bg=common.LINE, height=1).pack(
             fill="x", pady=(int(8 * s), int(6 * s)))
         tk.Label(self.body, text="World clock  ·  click a city to change it",
                  bg=common.PANEL, fg=common.MUTED, font=m.f(11),
                  anchor="w").pack(fill="x")
+        width = m.panel_width()
+        gap = int(8 * s)
+        pad = int(14 * s)
+
+        def tile(parent, w, h, fill, line):
+            cv = tk.Canvas(parent, width=w, height=h, bg=common.PANEL,
+                           highlightthickness=0, bd=0)
+            cv.create_image(0, 0, anchor="nw", image=icons.rounded(
+                w, h, 14 * s, fill, line, master=cv))
+            return cv
+
+        # Your time.
+        bar_h = int(66 * s)
+        bar = tile(self.body, width, bar_h, "#FFF6D5", "#F2D27A")
+        bar.pack(pady=(int(6 * s), gap))
+        mine_time = bar.create_text(pad, bar_h / 2.0, anchor="w",
+                                    fill=common.TITLE, font=m.f(30, True))
+        mine_day = bar.create_text(pad, bar_h / 2.0 + 4 * s, anchor="w",
+                                   fill=common.MUTED, font=m.f(16, True))
+        bar.create_text(width - pad, bar_h / 2.0 - 9 * s, anchor="e",
+                        text="Your time", fill=common.TITLE,
+                        font=m.f(14, True))
+        mine_zone = bar.create_text(width - pad, bar_h / 2.0 + 11 * s,
+                                    anchor="e", fill=common.MUTED,
+                                    font=m.f(12))
+
         grid = tk.Frame(self.body, bg=common.PANEL)
-        grid.pack(fill="x", pady=(int(4 * s), 0))
-        grid.columnconfigure(0, weight=1)
-        grid.columnconfigure(1, weight=1)
-        labels = []
+        grid.pack(fill="x")
+        tile_w = (width - gap) // 2
+        tile_h = int(70 * s)
+        cells = []
         for slot, name in enumerate(worldclock.chosen()):
-            tile = tk.Frame(grid, bg=common.ROW, cursor="hand2",
-                            padx=int(8 * s), pady=int(5 * s))
-            tile.grid(row=slot // 2, column=slot % 2, sticky="we",
-                      padx=(0 if slot % 2 == 0 else int(3 * s), 0),
-                      pady=(0, int(3 * s)))
-            city = tk.Label(tile, text=name, bg=common.ROW, fg=common.MUTED,
-                            font=m.f(12), anchor="w")
-            city.pack(fill="x")
-            time_l = tk.Label(tile, text="", bg=common.ROW, fg=common.TITLE,
-                              font=m.f(21, True), anchor="w")
-            time_l.pack(fill="x")
-            for w in (tile, city, time_l):
-                w.bind("<Button-1>", lambda _e, sl=slot: self.pick_city(sl))
-            labels.append((name, time_l))
+            cv = tile(grid, tile_w, tile_h, th["item"], th["item_line"])
+            cv.grid(row=slot // 2, column=slot % 2,
+                    padx=(0 if slot % 2 == 0 else gap, 0), pady=(0, gap))
+            cv.configure(cursor="hand2")
+            cv.create_text(pad, 17 * s, anchor="w", text=name,
+                           fill=common.MUTED, font=m.f(13))
+            diff = cv.create_text(tile_w - pad, 17 * s, anchor="e",
+                                  font=m.f(13, True))
+            hhmm = cv.create_text(pad, 46 * s, anchor="w",
+                                  fill=common.TITLE, font=m.f(26, True))
+            day = cv.create_text(pad, 50 * s, anchor="w",
+                                 fill=common.MUTED, font=m.f(15, True))
+            cv.bind("<Button-1>", lambda _e, sl=slot: self.pick_city(sl))
+            cells.append((name, cv, diff, hhmm, day))
+
+        def place_after(cv, first, second):
+            x0, _y0, x1, _y1 = cv.bbox(first)
+            cv.coords(second, x1 + 8 * s, cv.coords(second)[1])
 
         def tick():
             try:
                 if not grid.winfo_exists():
                     return
-                for name, label in labels:
-                    hhmm, wday, rel = worldclock.describe(name)
-                    label.configure(text="%s  %s" % (hhmm, rel or wday))
+                now, wday, zone = worldclock.mine()
+                bar.itemconfigure(mine_time, text=now)
+                bar.itemconfigure(mine_day, text=wday)
+                bar.itemconfigure(mine_zone, text=zone)
+                place_after(bar, mine_time, mine_day)
+                for name, cv, diff, hhmm, day in cells:
+                    t_, wd, rel = worldclock.describe(name)
+                    gap_text = worldclock.difference(name)
+                    colour = common.MUTED if gap_text == "same time" else (
+                        "#E0609F" if gap_text.startswith("−")
+                        else common.ACCENT)
+                    cv.itemconfigure(diff, text=gap_text, fill=colour)
+                    cv.itemconfigure(hhmm, text=t_)
+                    cv.itemconfigure(day, text=rel or wd)
+                    place_after(cv, hhmm, day)
             except tk.TclError:
                 return
             grid.after(15000, tick)
