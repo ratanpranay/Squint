@@ -250,9 +250,9 @@ class RadialMenu:
             common.log("frosted ring off: %r" % exc)
             return None
 
-    def _glow(self, colour, radius):
+    def _glow(self, colour, radius, x=0, y=0):
         cache = self.__dict__.setdefault("_glows", {})
-        key = (colour, int(radius))
+        key = (colour, int(radius), int(x), int(y))
         if key not in cache:
             from PIL import Image, ImageDraw, ImageFilter
             size = int(radius * 2 + 12)
@@ -261,6 +261,16 @@ class RadialMenu:
             ImageDraw.Draw(img).ellipse((6, 6, size - 6, size - 6),
                                         fill=rgb + (80,))
             img = img.filter(ImageFilter.GaussianBlur(3))
+            if IS_WINDOWS:
+                # Only inside the ring: outside it the window is
+                # see-through, where a soft glow shows as a dark smudge.
+                ring = Image.new("L", img.size, 0)
+                r = 200 * self.s - 1
+                ox, oy = self.cx - (x - size / 2.0), self.cy - (y - size / 2.0)
+                ImageDraw.Draw(ring).ellipse((ox - r, oy - r, ox + r, oy + r),
+                                             fill=255)
+                from PIL import ImageChops
+                img.putalpha(ImageChops.multiply(img.getchannel("A"), ring))
             cache[key] = icons.to_tk(img, self.canvas)
         return cache[key]
 
@@ -330,7 +340,7 @@ class RadialMenu:
             th = self.th
             if on:
                 # A soft glow in the tool's colour around it.
-                glow = self._glow(colour, rr + 11 * s)
+                glow = self._glow(colour, rr + 11 * s, x, y)
                 c.create_image(x, y, image=glow, tags="ring")
             c.create_oval(x - rr + 1, y - rr + 1, x + rr - 1, y + rr - 1,
                           fill=colour if on else th["item"], outline="",
@@ -595,7 +605,7 @@ class RadialMenu:
         d.rounded_rectangle((k, k, w * k - 1 - k, h * k - 1 - k), rad - k,
                             fill=rgb(common.PANEL) + (255,))
         self._panel_card = icons.to_tk(img.resize((w, h), Image.LANCZOS),
-                                       c)
+                                       c, hard=True)
         # A plain shape under it, in case pictures do not show.
         self._pill(x + 5 * s, y + 5 * s, x + w - 5 * s, y + h - 5 * s,
                    10 * s, fill=common.PANEL, tags=("panelcard",))
@@ -751,9 +761,11 @@ class RadialMenu:
             special = j in ("top", "back")
             th = self.th
             normal = icons.pill(w, h, th["pill_quiet"] if special
-                                else th["pill"], th["pill_line"], master=self.canvas)
+                                else th["pill"], th["pill_line"],
+                                master=self.canvas, hard=True)
             colour = tool.get("colour", common.ACCENT)
-            lit = icons.pill(w, h, colour, colour, master=self.canvas)
+            lit = icons.pill(w, h, colour, colour, master=self.canvas,
+                             hard=True)
             self._bloom_images[j] = (normal, lit)
             fb = th["pill_quiet"] if special else th["pill"]
             fbt = ("bloom", tag, tag + "_fb")
@@ -796,7 +808,8 @@ class RadialMenu:
         ImageDraw.Draw(img).rounded_rectangle(
             (0, 0, w * k - 1, h * k - 1), int(10 * self.s * k),
             fill=self.th["card"])
-        return icons.to_tk(img.resize((w, h), Image.LANCZOS), self.canvas)
+        return icons.to_tk(img.resize((w, h), Image.LANCZOS), self.canvas,
+                           hard=True)
 
     def _hit_bloom(self, x, y):
         for x0, y0, x1, y1, j in self.bloom:

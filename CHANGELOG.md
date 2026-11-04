@@ -20,6 +20,17 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Windows: dark jagged edges around the action pills, the note card and
+  the panel, and a dark smudge where a picked tool's glow met the ring's
+  edge.** Shapes outside the ring now have clean edges, and the glow
+  stays inside the ring.
+
+---
+
 ## 1.60.1 — 2026-10-25
 
 ### Changed

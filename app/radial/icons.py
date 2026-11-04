@@ -10,7 +10,19 @@ _cache = {}
 OVERSAMPLE = 4
 
 
-def to_tk(img, master=None):
+def hard_edges(img):
+    """Windows only: the ring's window is see-through where it shows one
+    exact colour, so a half-transparent edge pixel over that area shows
+    as a dark fringe. There, edge pixels become fully on or off."""
+    import sys
+    if sys.platform != "win32":
+        return img
+    img = img.convert("RGBA")
+    img.putalpha(img.getchannel("A").point(lambda v: 255 if v >= 128 else 0))
+    return img
+
+
+def to_tk(img, master=None, hard=False):
     """A PIL picture as a Tk image, handed over as PNG data.
 
     Not through Pillow's own Tk bridge: in the Mac app that bridge can fail
@@ -20,6 +32,8 @@ def to_tk(img, master=None):
     import base64
     import io
     import tkinter as tk
+    if hard:
+        img = hard_edges(img)
     buf = io.BytesIO()
     img.convert("RGBA").save(buf, format="PNG", compress_level=1)
     return tk.PhotoImage(master=master, format="png",
@@ -126,12 +140,12 @@ def draw(canvas, key, cx, cy, size, colour, tags=()):
 _pills = {}
 
 
-def pill(width, height, fill, outline=None, master=None):
+def pill(width, height, fill, outline=None, master=None, hard=False):
     """A smooth rounded pill (anti-aliased, unlike Tk's own shapes on
     Windows) as a Tk image, `width` x `height` px."""
     from PIL import Image, ImageDraw
     w, h = max(4, int(round(width))), max(4, int(round(height)))
-    key = (w, h, fill, outline, _owner(master))
+    key = (w, h, fill, outline, _owner(master), hard)
     photo = _pills.get(key)
     if photo is not None:
         return photo
@@ -146,8 +160,7 @@ def pill(width, height, fill, outline=None, master=None):
     else:
         d.rounded_rectangle((0, 0, w * k - 1, h * k - 1), r, fill=fill)
     img = img.resize((w, h), Image.LANCZOS)
-    # On Windows the soft edge blends towards the see-through key colour
-    # (near black): a hairline of dark, invisible against the dark pills.
-    photo = to_tk(img, master)
+    # `hard` for pills drawn where the ring's window is see-through.
+    photo = to_tk(img, master, hard=hard)
     _pills[key] = photo
     return photo
