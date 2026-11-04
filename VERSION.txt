@@ -1,4 +1,4 @@
-Squint 1.60.1
+Squint 1.60.2
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,17 @@ was wrong, not only that it was.
 
 
 
+
+1.60.2
+
+  - Windows: images drawn where the ring's window is see-through (pills,
+    the note card, the panel card) get binary alpha (icons.hard_edges),
+    and a picked tool's glow is masked to the ring, so no half-transparent
+    pixel meets the -transparentcolor key and shows as a dark fringe.
+  - PowerPoint media is named by slide (docs.ppt_media_names): slide
+    order from presentation.xml's sldIdLst, media per slide from its .rels
+    in the order the slide XML uses them; first slide wins for shared
+    media; layout/master-only media as "other N".
 
 1.60.1
 
