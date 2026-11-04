@@ -339,6 +339,81 @@ _MEDIA_DIRS = {".pptx": "ppt/media/", ".docx": "word/media/",
                ".ppsx": "ppt/media/", ".dotx": "word/media/"}
 
 
+_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+_MEDIA_TYPES = ("/image", "/video", "/audio", "/media", "/hdphoto")
+
+
+def _rels(zf, part):
+    """{rId: (target part, type)} for one part of an Office file."""
+    import posixpath
+    import xml.etree.ElementTree as ET
+    folder, name = posixpath.split(part)
+    rels = posixpath.join(folder, "_rels", name + ".rels")
+    try:
+        root = ET.fromstring(zf.read(rels))
+    except (KeyError, ET.ParseError):
+        return {}
+    out = {}
+    for rel in root:
+        if rel.get("TargetMode") == "External":
+            continue
+        target = posixpath.normpath(posixpath.join(folder, rel.get("Target",
+                                                                   "")))
+        out[rel.get("Id")] = (target, rel.get("Type", ""))
+    return out
+
+
+def _slides_in_order(zf):
+    """The slide parts in the order the presentation shows them."""
+    import re
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.fromstring(zf.read("ppt/presentation.xml"))
+        rels = _rels(zf, "ppt/presentation.xml")
+        order = [rels[el.get("{%s}id" % _REL_NS)][0]
+                 for el in root.iter() if el.tag.endswith("}sldId")
+                 and el.get("{%s}id" % _REL_NS) in rels]
+        if order:
+            return order
+    except (KeyError, ET.ParseError):
+        pass
+    found = [n for n in zf.namelist()
+             if re.match(r"ppt/slides/slide\d+\.xml$", n)]
+    return sorted(found, key=lambda n: int(re.findall(r"\d+", n)[-1]))
+
+
+def ppt_media_names(zf):
+    """[(media part, new name without extension)] for a PowerPoint file:
+    "slide 1-1", "slide 1-2", "slide 4-1"... by the slide a picture, video
+    or sound first appears on and its place on that slide. Media used only
+    by layouts or masters comes last as "other 1", "other 2"..."""
+    import re
+    named, out = set(), []
+    for number, slide in enumerate(_slides_in_order(zf), 1):
+        rels = _rels(zf, slide)
+        try:
+            xml = zf.read(slide).decode("utf-8", "replace")
+        except KeyError:
+            continue
+        # In the order the slide uses them.
+        ids = re.findall(r'r:(?:embed|link|id)="([^"]+)"', xml)
+        ids += [i for i in rels if i not in ids]
+        k = 0
+        for rid in ids:
+            target, kind = rels.get(rid, (None, ""))
+            if not target or not kind.endswith(_MEDIA_TYPES) or \
+                    target in named or target not in zf.namelist():
+                continue
+            named.add(target)
+            k += 1
+            out.append((target, "slide %d-%d" % (number, k)))
+    rest = sorted(n for n in zf.namelist()
+                  if n.startswith("ppt/media/") and not n.endswith("/")
+                  and n not in named)
+    out += [(n, "other %d" % (i + 1)) for i, n in enumerate(rest)]
+    return out
+
+
 def extract_media(path, out_dir=None, progress=None):
     """Every picture, video and sound inside a PowerPoint, Word or PDF,
     saved into its own folder in Downloads/Squint/Extracted media.
@@ -353,12 +428,21 @@ def extract_media(path, out_dir=None, progress=None):
     tick = progress or (lambda _d, _t: None)
     if ext in _MEDIA_DIRS:
         with zipfile.ZipFile(path) as zf:
-            names = [n for n in zf.namelist()
-                     if n.startswith(_MEDIA_DIRS[ext]) and not n.endswith("/")]
+            if _MEDIA_DIRS[ext] == "ppt/media/":
+                # Named by slide: "slide 3-1.png" is the first picture on
+                # slide 3.
+                pairs = ppt_media_names(zf)
+            else:
+                pairs = [(n, None) for n in zf.namelist()
+                         if n.startswith(_MEDIA_DIRS[ext])
+                         and not n.endswith("/")]
+            names = [n for n, _new in pairs]
             tick(0, len(names))
-            for name in names:
-                target = common.unique(os.path.join(
-                    folder, os.path.basename(name)))
+            for name, new in pairs:
+                plain = os.path.basename(name)
+                if new:
+                    plain = new + os.path.splitext(plain)[1].lower()
+                target = common.unique(os.path.join(folder, plain))
                 with zf.open(name) as src, open(target, "wb") as out:
                     shutil.copyfileobj(src, out)
                 count += 1

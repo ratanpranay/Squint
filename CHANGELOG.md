@@ -22,6 +22,14 @@ it, so there is exactly one copy to keep true.
 
 ## Unreleased
 
+### Changed
+
+- **Extract → From PowerPoint names pictures by slide**: "slide 1-1",
+  "slide 1-2", "slide 4-1"... (slide number, then its place on that
+  slide), in the order the slides are shown. A picture used on several
+  slides is saved once, under the first. Pictures only in the slide
+  design (layouts, masters) come last as "other 1", "other 2".
+
 ### Fixed
 
 - **Windows: dark jagged edges around the action pills, the note card and

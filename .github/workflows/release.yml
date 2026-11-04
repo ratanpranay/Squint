@@ -58,7 +58,7 @@ jobs:
       - name: Test the tools menu
         if: steps.v.outputs.skip != '1'
         run: |
-          pip install -q pillow PyMuPDF python-docx
+          pip install -q pillow PyMuPDF python-docx python-pptx
           python -m unittest tests.test_radial -v
 
       - name: Update package (Squint.zip, version.json)

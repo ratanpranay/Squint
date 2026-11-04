@@ -85,7 +85,32 @@ class Media(unittest.TestCase):
         folder, n = docs.extract_media(deck, TMP)
         self.assertEqual(n, 2)
         self.assertEqual(sorted(os.listdir(folder)),
-                         ["image1.png", "media2.mp4"])
+                         ["other 1.png", "other 2.mp4"])
+
+    @unittest.skipUnless(_has("pptx"), "python-pptx not installed")
+    def test_powerpoint_names_by_slide(self):
+        from pptx import Presentation
+        from pptx.util import Inches
+        pics = [_picture("s%d.png" % i, (50 + 10 * i, 40)) for i in range(4)]
+        prs = Presentation()
+        blank = prs.slide_layouts[6]
+        s1 = prs.slides.add_slide(blank)
+        s1.shapes.add_picture(pics[0], Inches(1), Inches(1))
+        s1.shapes.add_picture(pics[1], Inches(3), Inches(1))
+        prs.slides.add_slide(blank)
+        s3 = prs.slides.add_slide(blank)
+        s3.shapes.add_picture(pics[0], Inches(1), Inches(1))  # again
+        s4 = prs.slides.add_slide(blank)
+        s4.shapes.add_picture(pics[2], Inches(1), Inches(1))
+        s4.shapes.add_picture(pics[3], Inches(3), Inches(1))
+        path = os.path.join(TMP, "slides.pptx")
+        prs.save(path)
+        folder, n = docs.extract_media(path, TMP)
+        self.assertEqual(sorted(os.listdir(folder)),
+                         ["slide 1-1.png", "slide 1-2.png", "slide 4-1.png",
+                          "slide 4-2.png"])
+        with Image.open(os.path.join(folder, "slide 4-2.png")) as im:
+            self.assertEqual(im.size, (80, 40))
 
     @unittest.skipUnless(_has("docx"), "python-docx not installed")
     def test_from_word(self):
