@@ -1,4 +1,4 @@
-Squint 1.61.0
+Squint 1.62.0
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,15 @@ was wrong, not only that it was.
 
 
 
+
+1.62.0
+
+  - Selfie check is a drop-down (app/radial/selfie_drop.py) on the screen
+    with the camera: CGDisplayIsBuiltin over NSScreen on a Mac (placed
+    under the menu bar, from visibleFrame), QueryDisplayConfig's
+    outputTechnology (internal/LVDS/eDP/UDI-embedded) on Windows, else the
+    main screen. Closes on Esc or a click outside (polled), stopping the
+    capture thread.
 
 1.61.0
 
