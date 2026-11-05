@@ -35,6 +35,15 @@ FRONT_EVERY = 500
 RECENT_KEEP = 5
 
 
+_T0 = time.time()
+
+
+def log_time(step):
+    """How long after the process started a step finished, for the log:
+    "slow to start" is then a list of numbers instead of a feeling."""
+    log("timing     : %-22s %6d ms" % (step, 1000 * (time.time() - _T0)))
+
+
 def log(message):
     try:
         with open(config.log_path(), "a", encoding="utf-8") as fh:
@@ -220,8 +229,10 @@ class Controller:
             except Exception:
                 pass
 
+        log_time("toolkit up")
         from .ui_main import MainWindow
         self.window = MainWindow(self)
+        log_time("window built")
         log("chrome     : %s" % (self.window.effects,))
         self.window.withdraw()
 
@@ -239,6 +250,7 @@ class Controller:
         if sys.platform == "win32":
             self.root.after(FRONT_EVERY, self._track_front)
         self._start_hotkeys()
+        log_time("shortcuts ready")
         # No reading ahead. It read the whole screen in the background
         # every few seconds, and the whole screen again at every press of
         # the shortcut, at the same moment as the snip's own reading: on a
@@ -2412,6 +2424,7 @@ class Controller:
         # something built that often ran concurrently with things it had
         # no business running beside.
         self.root.after(900, self._warm_up)
+        self.root.after_idle(lambda: log_time("ready"))
         self.root.mainloop()
 
     def _warm_up(self):

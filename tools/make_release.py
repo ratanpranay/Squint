@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
 import zipfile
 
@@ -160,6 +161,41 @@ def tag_for(stamp):
     if letters:
         parts.append(letters.group(1).lower())
     return "-".join(parts)
+
+
+def add_bytecode(archive, files):
+    """Ready-compiled code beside the source, so the first start after an
+    update does not compile the whole app (and have a virus scanner read
+    every new file it writes) before the window can appear.
+
+    Hash-checked, as the installer's: Python compares the file's contents,
+    not its date, which unzipping does not keep. Only for the Python the
+    app runs on (3.12, Windows installer and Mac app alike); any other
+    Python ignores them and compiles as before."""
+    import py_compile
+    import tempfile
+    if sys.version_info[:2] != (3, 12):
+        return 0
+    tag = sys.implementation.cache_tag            # cpython-312
+    done = 0
+    scratch = tempfile.mkdtemp()
+    for path, arcname in files:
+        if not arcname.endswith(".py"):
+            continue
+        folder, name = os.path.split(arcname)
+        target = os.path.join(scratch, "x.pyc")
+        try:
+            py_compile.compile(
+                path, cfile=target, doraise=True,
+                invalidation_mode=py_compile.PycInvalidationMode.CHECKED_HASH)
+        except py_compile.PyCompileError:
+            continue
+        archive.write(target, os.path.join(
+            "Squint", folder, "__pycache__",
+            "%s.%s.pyc" % (name[:-3], tag)))
+        done += 1
+    shutil.rmtree(scratch, ignore_errors=True)
+    return done
 
 
 def collect():
@@ -489,6 +525,10 @@ def main():
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for path, arcname in files:
             archive.write(path, os.path.join("Squint", arcname))
+        compiled = add_bytecode(archive, files)
+    if compiled:
+        print("  + %d precompiled files (Python %d.%d)"
+              % ((compiled,) + sys.version_info[:2]))
 
     digest = hashlib.sha256()
     with open(zip_path, "rb") as fh:

@@ -20,6 +20,23 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Slow first start after an update.** Updates now arrive with the app's
+  code already compiled, so the restart no longer compiles every file
+  (and has a virus scanner check each new one) before Squint is ready.
+- **Mac: a background package install ran on every start** because the
+  camera library was always counted as missing. It is recognised now.
+
+### Added
+
+- The log records how long each start takes (window, shortcuts, ready),
+  so a slow start can be pinned down.
+
+---
+
 ## 1.62.0 — 2026-11-05
 
 ### Changed

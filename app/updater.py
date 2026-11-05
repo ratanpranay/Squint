@@ -485,6 +485,10 @@ IMPORT_NAMES = {
     "deep-translator": "deep_translator",
     "pyobjc-framework-vision": "Vision",
     "pyobjc-framework-quartz": "Quartz",
+    # Imported as cv2. Missing here, a Mac counted it as not installed on
+    # every start and ran pip in the background each time.
+    "opencv-python-headless": "cv2",
+    "opencv-python": "cv2",
 }
 
 
