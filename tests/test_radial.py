@@ -140,6 +140,34 @@ class Video(unittest.TestCase):
         self.assertIn(os.path.join("Squint", "Recordings"), out)
 
 
+class SelfieScreen(unittest.TestCase):
+    def test_finds_the_laptop_panel(self):
+        import struct
+        from app.radial.selfie_drop import _internal_panel
+
+        def path(mode, tech):
+            b = bytearray(72)
+            struct.pack_into("<I", b, 12, mode)
+            struct.pack_into("<I", b, 36, tech)
+            return bytes(b)
+
+        def mode(kind, w, h, x, y):
+            b = bytearray(64)
+            struct.pack_into("<I", b, 0, kind)
+            struct.pack_into("<II", b, 16, w, h)
+            struct.pack_into("<ii", b, 28, x, y)
+            return bytes(b)
+
+        # An external screen (HDMI) as the main one, the laptop to its left.
+        paths = path(0, 5) + path(2, 11)
+        modes = mode(1, 2560, 1440, 0, 0) + mode(2, 0, 0, 0, 0) + \
+            mode(1, 1920, 1200, -1920, 200)
+        self.assertEqual(_internal_panel(paths, 2, modes, 3),
+                         (-1920, 200, 1920, 1200, 0))
+        self.assertIsNone(_internal_panel(path(0, 5), 1,
+                                          mode(1, 1, 1, 0, 0), 1))
+
+
 class Calculator(unittest.TestCase):
     def test_sums(self):
         from app.radial.tools import calculate, show

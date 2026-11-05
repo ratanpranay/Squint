@@ -264,7 +264,7 @@ def scrolling(ctrl, **_):
 # -- selfie check ----------------------------------------------------------
 
 def selfie(ctrl, menu=None, **_):
-    """The laptop camera, live and mirrored, in the ring's panel."""
+    """The laptop camera, live and mirrored, in a drop-down under it."""
     try:
         import cv2                         # comes with Squint's OCR engine
     except Exception:
@@ -279,138 +279,10 @@ def selfie(ctrl, menu=None, **_):
     if cv2 is None or menu is None:
         _camera_app(ctrl, menu)
         return
-    import threading
-    import tkinter as tk
-    from PIL import Image, ImageTk
-
-    state = {"run": True, "frame": None, "error": None, "photo": None}
-
-    def grab():
-        cam = None
-        try:
-            if common.IS_WINDOWS:
-                backend = cv2.CAP_DSHOW
-            elif common.IS_MAC:
-                backend = getattr(cv2, "CAP_AVFOUNDATION", 0)
-            else:
-                backend = 0
-            cam = cv2.VideoCapture(0, backend)
-            # On a Mac the first try only triggers the permission question;
-            # keep trying while it is on screen.
-            tries = 0
-            while not cam.isOpened() and common.IS_MAC and tries < 30 \
-                    and state["run"]:
-                state["error_soft"] = ("Allow camera access when macOS "
-                                       "asks, then wait a moment.")
-                time.sleep(0.5)
-                cam.release()
-                cam = cv2.VideoCapture(0, backend)
-                tries += 1
-            state["error_soft"] = None
-            if not cam.isOpened():
-                state["error"] = ("No camera found, or it is in use by "
-                                  "another app." + (
-                                      " On a Mac, allow Squint under System "
-                                      "Settings › Privacy & Security › "
-                                      "Camera." if common.IS_MAC else ""))
-                return
-            cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            while state["run"]:
-                ok, frame = cam.read()
-                if not ok:
-                    state["error"] = "The camera stopped sending pictures."
-                    return
-                state["frame"] = cv2.cvtColor(cv2.flip(frame, 1),
-                                              cv2.COLOR_BGR2RGB)
-        except Exception as exc:           # noqa: BLE001
-            state["error"] = str(exc)
-        finally:
-            if cam is not None:
-                cam.release()
-
-    def stop():
-        state["run"] = False
-
-    def round_picture(picture, size):
-        """The middle of the frame, mirrored already, as a circle on the
-        ring's own colour (drawn twice as big and shrunk: smooth edges)."""
-        from PIL import ImageDraw
-        im = Image.fromarray(picture)
-        w, h = im.size
-        side = min(w, h)
-        im = im.crop(((w - side) // 2, (h - side) // 2,
-                      (w + side) // 2, (h + side) // 2)).resize((size, size))
-        mask = Image.new("L", (size * 2, size * 2), 0)
-        ImageDraw.Draw(mask).ellipse((0, 0, size * 2 - 1, size * 2 - 1),
-                                     fill=255)
-        mask = mask.resize((size, size), Image.LANCZOS)
-        out = im.convert("RGBA")
-        out.putalpha(mask)                  # see-through outside the circle
-        return out
-
-    def build(frame):
-        s = menu.s
-        size = menu.cam_diameter()
-        menu.on_clear(stop)
-        menu.set_cam(True)
-        menu.header(frame, "Selfie check", close=True)
-        status = tk.Label(frame, text="Starting the camera…",
-                          bg=common.PANEL, fg=common.TEXT, font=menu.f(11),
-                          anchor="w", justify="left",
-                          wraplength=menu.panel_width())
-        status.pack(fill="x")
-        tk.Label(frame, text="Only on this computer: nothing is recorded or "
-                 "sent unless you save a photo.", bg=common.PANEL,
-                 fg=common.MUTED, font=menu.f(11), anchor="w",
-                 justify="left", wraplength=menu.panel_width()).pack(
-            fill="x", pady=(int(4 * s), 0))
-        row = tk.Frame(frame, bg=common.PANEL)
-        row.pack(fill="x", pady=(int(10 * s), 0))
-
-        def save():
-            picture = state.get("frame")
-            if picture is None:
-                return
-            path = common.unique(os.path.join(
-                common.pictures_dir(), "Selfie %s.png" % common.stamp()))
-            Image.fromarray(picture).save(path)
-            status.configure(text="✓ Saved in Downloads\\Squint\\Screenshots")
-
-        menu.button(row, "Close", menu.back).pack(side="right")
-        menu.button(row, "Save photo", save, primary=True).pack(
-            side="right", padx=(0, int(6 * s)))
-        threading.Thread(target=grab, daemon=True, name="selfie").start()
-        shown = {"live": False}
-
-        def show():
-            if not state["run"] or menu.closed:
-                return
-            try:
-                if not status.winfo_exists():
-                    return
-                if state["error"]:
-                    status.configure(text=state["error"], fg=common.ERROR)
-                    menu.relayout()
-                    return
-                if state.get("error_soft") and state["frame"] is None:
-                    status.configure(text=state["error_soft"])
-                picture = state["frame"]
-                if picture is not None:
-                    photo = ImageTk.PhotoImage(round_picture(picture, size))
-                    state["photo"] = photo
-                    menu.set_cam_frame(photo)
-                    if not shown["live"]:
-                        shown["live"] = True
-                        status.configure(text="This is how you look right "
-                                         "now.")
-            except tk.TclError:
-                return
-            ctrl.root.after(40, show)
-
-        show()
-
-    menu.show_view(build, pinned=True, name="selfie")
+    # The ring closes; the preview drops down under the camera, on the
+    # screen that has it (selfie_drop.py).
+    from .selfie_drop import SelfieDrop
+    menu.close_then(lambda: SelfieDrop(ctrl, cv2), delay=120)
 
 
 def _mac_needs_refresh():

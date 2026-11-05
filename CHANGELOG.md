@@ -20,6 +20,19 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Selfie check drops down under the camera.** The ring closes and a
+  white card slides down from the top centre of the laptop's own screen
+  (from the notch on a Mac), never on a second monitor; a computer without
+  a built-in screen uses its main one. Looking at the preview means looking
+  at the lens. Save photo, Close, Esc or a click elsewhere; the camera turns
+  off as soon as it closes.
+
+---
+
 ## 1.61.0 — 2026-11-04
 
 ### Changed
