@@ -44,6 +44,22 @@ def log_time(step):
     log("timing     : %-22s %6d ms" % (step, 1000 * (time.time() - _T0)))
 
 
+def _log_profile(profiler, lines=30):
+    """The slowest parts of a measured step, into the log."""
+    try:
+        import io
+        import pstats
+        out = io.StringIO()
+        stats = pstats.Stats(profiler, stream=out)
+        stats.sort_stats("cumulative").print_stats(lines)
+        log("profile    : building the window, slowest parts first")
+        for line in out.getvalue().splitlines():
+            if line.strip():
+                log("profile    : " + line.rstrip()[:200])
+    except Exception:
+        pass
+
+
 def log(message):
     try:
         with open(config.log_path(), "a", encoding="utf-8") as fh:
@@ -231,8 +247,27 @@ class Controller:
 
         log_time("toolkit up")
         from .ui_main import MainWindow
+        # A slow window last time: measure this one in detail, so the log
+        # says which part of building it took the time.
+        profiler = None
+        if CFG.get("profile_next_start"):
+            try:
+                import cProfile
+                profiler = cProfile.Profile()
+                profiler.enable()
+            except Exception:
+                profiler = None
+        built_from = time.time()
         self.window = MainWindow(self)
+        built_ms = 1000 * (time.time() - built_from)
         log_time("window built")
+        if profiler is not None:
+            profiler.disable()
+            _log_profile(profiler)
+        try:
+            CFG.set("profile_next_start", built_ms > 5000)
+        except Exception:
+            pass
         log("chrome     : %s" % (self.window.effects,))
         self.window.withdraw()
 

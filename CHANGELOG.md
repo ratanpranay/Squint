@@ -20,6 +20,16 @@ it, so there is exactly one copy to keep true.
 
 ---
 
+## Unreleased
+
+### Added
+
+- When the main window took more than 5 seconds to build, the next start
+  measures where that time goes and writes it to the log, to find out
+  why starting can take over 20 seconds on some PCs.
+
+---
+
 ## 1.62.1 — 2026-11-05
 
 ### Fixed
