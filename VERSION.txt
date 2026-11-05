@@ -1,4 +1,4 @@
-Squint 1.62.0
+Squint 1.62.1
 hotkey: ctrl+cmd+X (macOS) / ctrl+alt+X (Windows) - tap: snip, hold: see translated
 
 Versions are MAJOR.MINOR.PATCH from here. The date-and-letter stamps below
@@ -22,6 +22,17 @@ was wrong, not only that it was.
 
 
 
+
+1.62.1
+
+  - Squint.zip carries hash-checked cpython-312 .pyc files beside the
+    source (make_release.add_bytecode), so the restart after an update
+    does not compile ~145 modules before the window appears; other
+    Pythons ignore them.
+  - updater.IMPORT_NAMES maps opencv-python(-headless) to cv2: the Mac
+    counted it missing and ran pip in the background on every start.
+  - main.log_time(): toolkit up / window built / shortcuts ready / ready,
+    in ms since the process started.
 
 1.62.0
 
