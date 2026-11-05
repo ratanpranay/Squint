@@ -24,7 +24,7 @@ ROW = "#2C3240"
 LINE = "#3A404C"
 TEXT = "#E8EAF0"
 MUTED = "#A9AFBC"
-ACCENT = "#3D7BF5"
+ACCENT = "#2563EB"      # white text on it: 5.2:1
 TITLE = "#FFFFFF"       # headings
 FAINT = "#5F6676"       # days outside the month, "Wk"
 DIM = "#7D8597"         # week numbers
@@ -43,7 +43,7 @@ _DARK = dict(BG="#1E2129", PANEL="#262A33", ROW="#2C3240", LINE="#3A404C",
              WARN_FG="#F5D58A", BUTTON_TEXT="#FFFFFF")
 _LIGHT = dict(BG="#F3F4F7", PANEL="#FAFAFC", ROW="#ECEEF2", LINE="#DCDFE5",
               TEXT="#1E2129", MUTED="#5B6270", TITLE="#111318",
-              FAINT="#A3A9B5", DIM="#8A919E", ERROR="#C5221F",
+              FAINT="#868D99", DIM="#6B7280", ERROR="#C5221F",
               GOOD="#188038", LINK="#1A5FD6", WARN_BG="#FFF4D6",
               WARN_FG="#7A5600", BUTTON_TEXT="#1E2129")
 
@@ -996,3 +996,31 @@ def system_light():
     except Exception:
         pass
     return False
+
+
+_REDUCED = {}
+
+
+def reduced_motion():
+    """True when the system asks for less motion (Windows: animation
+    effects off; Mac: Reduce motion). Then nothing pulses or slides."""
+    if "on" in _REDUCED:
+        return _REDUCED["on"]
+    on = False
+    try:
+        if IS_WINDOWS:
+            import ctypes
+            value = ctypes.c_int(1)
+            # SPI_GETCLIENTAREAANIMATION
+            if ctypes.windll.user32.SystemParametersInfoW(
+                    0x1042, 0, ctypes.byref(value), 0):
+                on = not value.value
+        elif IS_MAC:
+            from AppKit import NSWorkspace
+            on = bool(NSWorkspace.sharedWorkspace()
+                      .accessibilityDisplayShouldReduceMotion())
+    except Exception:
+        on = False
+    _REDUCED["on"] = on
+    return on
+

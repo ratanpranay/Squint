@@ -22,6 +22,22 @@ it, so there is exactly one copy to keep true.
 
 ## Unreleased
 
+### Changed
+
+- **Easier to read** (checked against accessibility contrast rules):
+  - Tool colours are deeper, so the white label on a picked tool, its lit
+    action and the buttons are clearly readable; icons stand out on white.
+  - Grey and gold secondary text (date, next appointment, week numbers,
+    world-clock differences) is darker; small notes under the ring are a
+    size larger.
+- **Calmer heart**: it beats three times when the ring opens, then only
+  now and then, so it does not pull attention from the tools.
+- **Respects "reduce motion"**: with animations turned off in Windows or
+  Reduce motion on in macOS, nothing pulses or slides.
+- The pointer turns into a hand over the tools.
+- **Deleting an appointment can be undone**: "Deleted … · Undo" for a few
+  seconds instead of it being gone at once.
+
 ### Added
 
 - When the main window took more than 5 seconds to build, the next start

@@ -53,9 +53,11 @@ def _tool_list():
         return lambda ctrl, **kw: docs.extract_cmd(ctrl, action, **kw)
 
     # Each tool's own colour: its icon, and its fill once picked.
-    colours = {"shot": "#3D7BF5", "rec": "#F05252", "tools": "#14A8C4",
-               "pdf": "#F08C3A", "zip": "#9B6BF2", "send": "#22A86E",
-               "cal": "#E0A800", "ext": "#E0609F"}
+    # Deep enough that white words on them read (4.5:1 or better), and
+    # the icons stand out on white (3:1 or better).
+    colours = {"shot": "#2563EB", "rec": "#DC2626", "tools": "#0E7490",
+               "pdf": "#C2410C", "zip": "#7C3AED", "send": "#15803D",
+               "cal": "#A16207", "ext": "#DB2777"}
 
     def tool(key, label, full, glyph, rows, note="", **extra):
         d = {"key": key, "label": label, "full": full, "glyph": glyph,

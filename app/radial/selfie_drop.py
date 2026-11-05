@@ -293,6 +293,8 @@ class SelfieDrop:
     def _slide(self, step, steps=9):
         if self.closed:
             return
+        if common.reduced_motion():
+            step = steps
         t = min(1.0, step / float(steps))
         ease = 1 - (1 - t) ** 3
         y = int(self.top - self.h + self.h * ease)

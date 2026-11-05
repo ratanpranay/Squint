@@ -43,7 +43,7 @@ DARK = {"glass": "#181B22", "glass_mix": 0.72, "ring_line": "#4A505C",
         "card_text": "#C9CED8", "heart": "#C8546A"}
 LIGHT = {"glass": "#FFFFFF", "glass_mix": 0.80, "ring_line": "#D9DDE5",
          "item": "#FFFFFF", "item_line": "#E3E6EC", "label": "#2A2F3A",
-         "title": "#1E2129", "sub": "#6B7280", "agenda": "#B7791F",
+         "title": "#1E2129", "sub": "#5B6270", "agenda": "#8A5A00",
          "pill": "#FFFFFF", "pill_line": "#E1E4EA", "pill_text": "#1E2129",
          "pill_key": "#9CA3AF", "pill_quiet": "#F3F4F7",
          "quiet_text": "#4B5563", "card": (255, 255, 255, 235),
@@ -286,6 +286,14 @@ class RadialMenu:
         hit = getattr(self, "heart_hit", None)
         scale, ring, delay = self._BEAT[self._beat_step]
         self._beat_step = (self._beat_step + 1) % len(self._BEAT)
+        if self._beat_step == 0:
+            self._beats = getattr(self, "_beats", 0) + 1
+            # Three beats to draw the eye, then a calm one now and then:
+            # something always moving pulls attention from the tools.
+            if self._beats >= 3:
+                delay = 8000
+        if common.reduced_motion():
+            return
         c.delete("heartfx")
         if hit and not self.heart_hover and self.view != "support":
             hx, hy, _r = hit
@@ -390,7 +398,7 @@ class RadialMenu:
             hint = "Click a tool  ·  Esc closes"
         hint_id = c.create_text(cx, cy + r + 14 * s, text=hint, anchor="n",
                                 width=380 * s, justify="center",
-                                fill=self.th["card_text"], font=self.f(11),
+                                fill=self.th["card_text"], font=self.f(12),
                                 tags=("ring", "hint"))
         # On a dark card, so it reads on a white page as well.
         x0, y0, x1, y1 = c.bbox(hint_id)
@@ -450,7 +458,7 @@ class RadialMenu:
         except Exception:
             nxt = ""
         text = nxt or "Nothing on the agenda"
-        font = self.f(11)
+        font = self.f(12)
         measure = tkfont.Font(font=font).measure
         room = 108 * s
         if measure(text) > room:
@@ -947,6 +955,10 @@ class RadialMenu:
 
     def _motion(self, e):
         heart = self._on_heart(e.x, e.y)
+        over_tool = self._hit_item(e.x, e.y) is not None
+        if over_tool != getattr(self, "_hand", False) and not heart:
+            self._hand = over_tool
+            self.canvas.configure(cursor="hand2" if over_tool else "")
         if heart != self.heart_hover and not self.hub_qr \
                 and not self.hub_cam:
             self.heart_hover = heart

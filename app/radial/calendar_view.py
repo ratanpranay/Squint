@@ -185,6 +185,7 @@ class CalendarPanel:
         if not items:
             tk.Label(self.body, text="Nothing planned.", bg=common.PANEL,
                      fg=common.MUTED, font=m.f(12), anchor="w").pack(fill="x")
+        self._undo_row()
         for i, item in enumerate(items):
             row = tk.Frame(self.body, bg=common.ROW)
             row.pack(fill="x", pady=(int(3 * s), 0))
@@ -303,8 +304,8 @@ class CalendarPanel:
                     t_, wd, rel = worldclock.describe(name)
                     gap_text = worldclock.difference(name)
                     colour = common.MUTED if gap_text == "same time" else (
-                        "#E0609F" if gap_text.startswith("−")
-                        else common.ACCENT)
+                        "#BE185D" if gap_text.startswith("−")
+                        else "#1D4ED8")
                     cv.itemconfigure(diff, text=gap_text, fill=colour)
                     cv.itemconfigure(hhmm, text=t_)
                     cv.itemconfigure(day, text=rel or wd)
@@ -397,8 +398,49 @@ class CalendarPanel:
         self.render()
 
     def remove(self, index):
-        remove(_view["day"], index)
+        """Delete at once, with Undo for a few seconds: one wrong click
+        should not lose an appointment, and a question every time would
+        be in the way."""
+        day = _view["day"]
+        items = load().get(day.isoformat(), [])
+        item = items[index] if 0 <= index < len(items) else None
+        remove(day, index)
+        self._undo = (day, item) if item else None
         self.render()
+
+    def _undo_row(self):
+        undo = getattr(self, "_undo", None)
+        if not undo or undo[0] != _view["day"]:
+            return
+        m, s = self.menu, self.s
+        day, item = undo
+        row = tk.Frame(self.body, bg=common.PANEL)
+        row.pack(fill="x", pady=(int(4 * s), 0))
+        tk.Label(row, text="Deleted “%s”" % item.get("text", "")[:40],
+                 bg=common.PANEL, fg=common.MUTED, font=m.f(12),
+                 anchor="w").pack(side="left")
+        link = tk.Label(row, text="Undo", bg=common.PANEL, fg=common.LINK,
+                        font=m.f(12, True), cursor="hand2")
+        link.pack(side="left", padx=(int(8 * s), 0))
+
+        def undo_it(_e=None):
+            add(day, item.get("text", ""), item.get("time", ""))
+            self._undo = None
+            self.render()
+
+        link.bind("<Button-1>", undo_it)
+
+        def expire():
+            if getattr(self, "_undo", None) is undo:
+                self._undo = None
+                try:
+                    if row.winfo_exists():
+                        row.destroy()
+                        m.relayout()
+                except tk.TclError:
+                    pass
+
+        row.after(8000, expire)
 
 
 def next_item(now=None):
